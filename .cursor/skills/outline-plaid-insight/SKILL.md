@@ -15,10 +15,10 @@ Produce a concise data spec for a financial insight: required Plaid tables/colum
 
 | File | Purpose |
 |---|---|
-| [plaid-api-schema.md](plaid-api-schema.md) | Table and column reference — read before drafting |
+| [plaid-api-schema.md](plaid-api-schema.md) | Hybrid datatable + Plaid API spec reference (Account APIs overview, endpoint fields) — read before drafting |
 | [insight-types.md](insight-types.md) | Taxonomy of insight patterns (snapshot, chart, recurring, top N, etc.) |
 | [examples/](examples/README.md) | One `.md` per finalized insight — add every new insight here |
-| [ui-output-options.md](ui-output-options.md) | UI patterns (nested list, flat table, etc.) |
+| [ui-output-options.md](ui-output-options.md) | UI output types (nested list, flat table, line chart, etc.) — grouped by type |
 
 ## Workflow
 
@@ -48,11 +48,11 @@ Ask only what is ambiguous:
 | **UI pattern** | Nested list, flat table | Link or add [ui-output-options.md](ui-output-options.md) |
 | **Null / missing data** | Exclude, fallback, zero | Filter rules |
 
-**Defaults** (only if user declines to specify): latest snapshot for balances; current calendar month for spending; exclude `pending = true` and removed transactions; primary category for spend grouping.
+**Defaults** (only if user declines to specify): latest snapshot for balances; current calendar month for spending; exclude `pending = true` and `removed = true`; primary category for spend grouping.
 
 ## Output template
 
-**Every finalized insight** must be saved as `examples/{category}/{kebab-case-name}.md` where `{category}` is `net-worth`, `cash-flow`, or `investment-account`, indexed in [examples/README.md](examples/README.md), and listed in [Calibration examples](#calibration-examples) below.
+**Every finalized insight** must be saved as `examples/{category}/{kebab-case-name}.md` where `{category}` is `net-worth`, `cash-flow`, `investment-account`, or `alerts`, indexed in [examples/README.md](examples/README.md), and listed in [Calibration examples](#calibration-examples) below.
 
 ```markdown
 # [Insight name]
@@ -71,7 +71,12 @@ Ask only what is ambiguous:
 **Input:** Short filters, scope, and joins.
 
 ### Calculation / analysis
-1. [Step-by-step logic]
+
+1. **Step name**
+   - Detail
+   - Detail
+2. **Next step**
+   - Detail
 
 ### Data output
 
@@ -94,7 +99,7 @@ Keep specs under ~60 lines unless the insight is complex.
 | Scope by `user_id` | All queries |
 | `synced_at` | Current snapshot vs point-in-time on balance/holdings tables |
 | Pending transactions | Exclude `pending = true` from analysis |
-| Removed transactions | Exclude IDs in `plaid_transactions_removed` |
+| Removed transactions | Exclude `removed = true` |
 | `amount` sign | Positive = money out, negative = money in |
 | Investment holdings | Join `plaid_investment_holdings` ↔ `plaid_investment_securities` on `security_id` + matching `synced_at` |
 | Liabilities | Join liability tables to `plaid_accounts` on `account_id` |
@@ -111,17 +116,59 @@ If data is not in the schema, state **Not available in current Plaid schema**, s
 
 ## Calibration examples
 
+Grouped by UI output type. Full index: [examples/README.md](examples/README.md).
+
+### Nested list
+
 | Insight | File |
 |---|---|
 | Net worth snapshot | [net-worth-snapshot.md](examples/net-worth/net-worth-snapshot.md) |
-| Net worth balance chart | [net-worth-balance-chart.md](examples/net-worth/net-worth-balance-chart.md) |
+| Top 5 holdings | [top-5-holdings.md](examples/investment-account/top-5-holdings.md) |
+| Asset allocation | [asset-allocation.md](examples/investment-account/asset-allocation.md) |
+| Investment accounts by institution | [investment-accounts-by-institution.md](examples/investment-account/investment-accounts-by-institution.md) |
+
+### Flat table
+
+| Insight | File |
+|---|---|
 | Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) |
 | Recurring spending | [recurring-spending.md](examples/cash-flow/recurring-spending.md) |
-| Cash inflow and outflow chart | [cash-inflow-outflow-chart.md](examples/cash-flow/cash-inflow-outflow-chart.md) |
-| Top 5 holdings | [top-5-holdings.md](examples/investment-account/top-5-holdings.md) |
+| Top 5 biggest purchases | [top-5-biggest-purchases.md](examples/cash-flow/top-5-biggest-purchases.md) |
 | Recurring investments | [recurring-investments.md](examples/investment-account/recurring-investments.md) |
-| Asset allocation | [asset-allocation.md](examples/investment-account/asset-allocation.md) |
+| Cash account detail | [cash-account-detail.md](examples/net-worth/cash-account-detail.md) |
+
+### Line chart
+
+| Insight | File |
+|---|---|
+| Net worth balance chart | [net-worth-balance-chart.md](examples/net-worth/net-worth-balance-chart.md) |
 | Investment performance chart | [investment-performance-chart.md](examples/investment-account/investment-performance-chart.md) |
-| Investment accounts by institution | [investment-accounts-by-institution.md](examples/investment-account/investment-accounts-by-institution.md) |
+
+### Composite
+
+| Insight | File |
+|---|---|
+| Overview dashboard | [overview-dashboard.md](examples/net-worth/overview-dashboard.md) |
+| Investment account detail | [investment-account-detail.md](examples/investment-account/investment-account-detail.md) |
+
+### Combo line and bar chart
+
+| Insight | File |
+|---|---|
+| Cash inflow and outflow chart | [cash-inflow-outflow-chart.md](examples/cash-flow/cash-inflow-outflow-chart.md) |
+
+### Stacked bar
+
+| Insight | File |
+|---|---|
+| Assets / liabilities bar | [assets-liabilities-bar.md](examples/net-worth/assets-liabilities-bar.md) |
+
+### Insight card
+
+| Insight | File |
+|---|---|
+| Excess checking cash | [excess-checking-cash.md](examples/alerts/excess-checking-cash.md) |
+| Subscription price increase | [subscription-price-increase.md](examples/alerts/subscription-price-increase.md) |
+| Late paycheck | [late-paycheck.md](examples/alerts/late-paycheck.md) |
 
 Match structure and tone; do not copy logic for a different insight.

@@ -22,30 +22,37 @@ Shows combined investment account value as a daily time series for a selected ti
 
 | Parameter | Values | Default |
 |---|---|---|
-| `timeframe` | `trailing_1m`, `trailing_6m`, `ytd`, `trailing_1y`, `all_time` | `trailing_6m` |
+| `timeframe` | `trailing_1m`, `trailing_3m`, `trailing_6m`, `ytd`, `trailing_1y`, `all_time` | `trailing_6m` |
 
 ### Calculation / analysis
 
-1. Set `window_end` = calendar date of `MAX(synced_at)` for the user ("today").
-2. Compute `window_start` from `timeframe`:
+1. **`window_end`**
+   - Calendar date of `MAX(synced_at)` for the user ("today")
+2. **Compute `window_start` from `timeframe`**
    - `trailing_1m` — 30 calendar days before `window_end`, inclusive
+   - `trailing_3m` — 90 calendar days before `window_end`, inclusive
    - `trailing_6m` — 6 calendar months before `window_end`, inclusive
    - `ytd` — January 1 of `window_end`'s year
    - `trailing_1y` — 12 calendar months before `window_end`, inclusive
    - `all_time` — earliest calendar date on which any investment account has a row with `synced_at` on or before end of that day
-3. For each calendar day `D` from `window_start` through `window_end`:
-   - **Point-in-time accounts:** for each `account_id` where `type = investment`, take the row with greatest `synced_at` where `synced_at <= end_of_day(D)`. Exclude null `balances_current`. Omit accounts with no row on or before `D`.
-   - Use `balances_current` only (not `balances_available`).
-   - `total_value` = sum of `balances_current` across included investment accounts for that day.
-   - If no investment account has a snapshot on or before `D`, omit `D` from the series (do not emit a point).
-4. Build `points` as `{ date: D, total_value }` for each day with a computed value, sorted ascending by `date`.
-5. **Derive from `points`** (do not compute independently):
+3. **Daily portfolio value series**
+   - For each calendar day `D` from `window_start` through `window_end`:
+     - **Point-in-time accounts:** for each `account_id` where `type = investment`, take the row with greatest `synced_at` where `synced_at <= end_of_day(D)`. Exclude null `balances_current`. Omit accounts with no row on or before `D`.
+     - Use `balances_current` only (not `balances_available`)
+     - `total_value` = sum of `balances_current` across included investment accounts for that day
+     - If no investment account has a snapshot on or before `D`, omit `D` from the series (do not emit a point)
+4. **Build `points`**
+   - `{ date: D, total_value }` for each day with a computed value
+   - Sort ascending by `date`
+5. **Derive from `points`**
+   - Do not compute independently
    - `total_value_min` = minimum `total_value` in `points`; omit if `points` is empty
    - `total_value_max` = maximum `total_value` in `points`; omit if `points` is empty
    - `start_value` = `points[0].total_value`; `end_value` = `points[last].total_value`
    - `period_return_amount` = `end_value - start_value`
    - `period_return_pct` = `period_return_amount / start_value` when `start_value > 0`; else omit
-6. Set `as_of` = `window_end`.
+6. **`as_of`**
+   - `window_end`
 
 **Notes:**
 
@@ -58,7 +65,7 @@ Shows combined investment account value as a daily time series for a selected ti
 
 | Field | Type | Description |
 |---|---|---|
-| `timeframe` | string | Requested window: `trailing_1m`, `trailing_6m`, `ytd`, `trailing_1y`, `all_time` |
+| `timeframe` | string | Requested window: `trailing_1m`, `trailing_3m`, `trailing_6m`, `ytd`, `trailing_1y`, `all_time` |
 | `window_start` | date | First day in the filtered series |
 | `window_end` | date | Last day in the filtered series |
 | `points` | array | Chart series: `{ date, total_value }`, sorted ascending by `date` |

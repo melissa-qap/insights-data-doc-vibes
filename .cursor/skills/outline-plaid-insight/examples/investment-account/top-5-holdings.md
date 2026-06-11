@@ -46,14 +46,30 @@ Shows the user's five largest investment positions by market value across all li
 
 ### Calculation / analysis
 
-1. Load latest snapshot timestamp from `plaid_accounts` for the user.
-2. Get all `account_id` values where `type = investment`.
-3. Load `plaid_investment_holdings` for those accounts at that `synced_at`. Join `plaid_investment_securities` on `security_id` + `synced_at`.
-4. **Build per-account rows** — for each holding row, `{ account_id, account_name, value }` where `value = institution_value` and `account_name` comes from `plaid_accounts.name`.
-5. **Aggregate by security** — group by `security_id`; collect account rows into `accounts[]`. Derive `total_value` = sum of `accounts[].value` (do not compute independently).
-6. **Rank** — sort securities by `total_value` descending; take top 5.
-7. **Sort accounts within each holding** — order `accounts` by `value` descending (largest position first).
-8. **Build holdings list** — `{ rank, security_id, name, ticker_symbol, total_value, security_type, accounts }` for ranks 1–5. Use security `name` from `plaid_investment_securities`; fall back to `ticker_symbol` if null.
+1. **Load snapshot timestamp**
+   - Latest snapshot from `plaid_accounts` for the user
+2. **Load investment accounts**
+   - All `account_id` values where `type = investment`
+3. **Load holdings**
+   - `plaid_investment_holdings` for those accounts at that `synced_at`
+   - Join `plaid_investment_securities` on `security_id` + `synced_at`
+4. **Build per-account rows**
+   - For each holding row: `{ account_id, account_name, value }`
+   - `value = institution_value`
+   - `account_name` from `plaid_accounts.name`
+5. **Aggregate by security**
+   - Group by `security_id`
+   - Collect account rows into `accounts[]`
+   - Derive `total_value` = sum of `accounts[].value` (do not compute independently)
+6. **Rank**
+   - Sort securities by `total_value` descending
+   - Take top 5
+7. **Sort accounts within each holding**
+   - Order `accounts` by `value` descending (largest position first)
+8. **Build holdings list**
+   - `{ rank, security_id, name, ticker_symbol, total_value, security_type, accounts }` for ranks 1–5
+   - Use security `name` from `plaid_investment_securities`
+   - Fall back to `ticker_symbol` if null
 
 ### Data output
 

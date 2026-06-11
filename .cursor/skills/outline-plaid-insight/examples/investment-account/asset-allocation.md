@@ -59,23 +59,46 @@ Shows portfolio-wide asset allocation (equity, bonds, cash, crypto, internationa
 
 ### Calculation / analysis
 
-1. Load latest snapshot timestamp from `plaid_accounts` for the user.
-2. Get all `account_id` values where `type = investment`.
-3. Load `plaid_investment_holdings` for those accounts at that `synced_at`. Join `plaid_investment_securities` on `security_id` + `synced_at`. Load `security_asset_allocation` for held `security_id` values.
-4. **Classify each holding** (`institution_value` = V) into attribution slices `{ security_id, asset_class, attributed_value }`:
-   - If `security_id` has enrichment rows: for each row, `attributed_value = V × weight`.
-   - Else if `holdings.unofficial_currency_code IS NOT NULL`: one slice, `asset_class = crypto`, `attributed_value = V`.
-   - Else if `type = fixed income`: `bonds`, V.
-   - Else if `type = cash`: `cash`, V.
-   - Else if `type = equity` AND (`isin` IS NULL OR left 2 chars of `isin` = `US`): `equity`, V.
-   - Else if `type = equity` AND `isin` country prefix ≠ `US`: `international_equity`, V.
-   - Else if `type` in (`etf`, `mutual fund`, `derivative`, `other`) with no enrichment: add V to `unclassified_value`; emit no slices.
-5. **Roll up by `asset_class`** (portfolio-wide, classified only): `value` = sum of `attributed_value`. Derive `total_classified_value` from classified class rows (do not compute independently).
-6. **Holdings drill-down per class** — group slices by `security_id`; `value` = sum of attributed slices in that class. Use security `name`; fall back to `ticker_symbol` if null. Sort holdings within class by `value` descending. A single ETF may appear under multiple classes with partial values.
-7. **Unclassified** — collect holdings with no classification path into `unclassified_holdings[]`; `unclassified_value` = sum of their `institution_value`. `total_investment_value` = `total_classified_value + unclassified_value`.
-8. **Other class** — if `unclassified_value > 0`, append `{ asset_class: other, value: unclassified_value, holdings: unclassified_holdings }` to `asset_classes`. Omit when zero.
-9. **Percents** — for each `asset_classes` entry (including `other`), `percent` = `value / total_investment_value` (0 if denominator 0). Sort `asset_classes` by `value` descending.
-10. Set `as_of` = snapshot `synced_at`.
+1. **Load snapshot timestamp**
+   - Latest snapshot from `plaid_accounts` for the user
+2. **Load investment accounts**
+   - All `account_id` values where `type = investment`
+3. **Load holdings and enrichment**
+   - `plaid_investment_holdings` for those accounts at that `synced_at`
+   - Join `plaid_investment_securities` on `security_id` + `synced_at`
+   - Load `security_asset_allocation` for held `security_id` values
+4. **Classify each holding**
+   - `institution_value` = V
+   - Into attribution slices `{ security_id, asset_class, attributed_value }`:
+     - If `security_id` has enrichment rows: for each row, `attributed_value = V × weight`
+     - Else if `holdings.unofficial_currency_code IS NOT NULL`: one slice, `asset_class = crypto`, `attributed_value = V`
+     - Else if `type = fixed income`: `bonds`, V
+     - Else if `type = cash`: `cash`, V
+     - Else if `type = equity` AND (`isin` IS NULL OR left 2 chars of `isin` = `US`): `equity`, V
+     - Else if `type = equity` AND `isin` country prefix ≠ `US`: `international_equity`, V
+     - Else if `type` in (`etf`, `mutual fund`, `derivative`, `other`) with no enrichment: add V to `unclassified_value`; emit no slices
+5. **Roll up by `asset_class`**
+   - Portfolio-wide, classified only
+   - `value` = sum of `attributed_value`
+   - Derive `total_classified_value` from classified class rows (do not compute independently)
+6. **Holdings drill-down per class**
+   - Group slices by `security_id`
+   - `value` = sum of attributed slices in that class
+   - Use security `name`; fall back to `ticker_symbol` if null
+   - Sort holdings within class by `value` descending
+   - A single ETF may appear under multiple classes with partial values
+7. **Unclassified**
+   - Collect holdings with no classification path into `unclassified_holdings[]`
+   - `unclassified_value` = sum of their `institution_value`
+   - `total_investment_value` = `total_classified_value + unclassified_value`
+8. **Other class**
+   - If `unclassified_value > 0`, append `{ asset_class: other, value: unclassified_value, holdings: unclassified_holdings }` to `asset_classes`
+   - Omit when zero
+9. **Percents**
+   - For each `asset_classes` entry (including `other`), `percent` = `value / total_investment_value` (0 if denominator 0)
+   - Sort `asset_classes` by `value` descending
+10. **`as_of`**
+    - Snapshot `synced_at`
 
 **Heuristic limitations:** `international_equity` for single stocks uses ISIN country prefix only. Crypto detection depends on `unofficial_currency_code` and institution labeling — not all crypto positions may be identified.
 

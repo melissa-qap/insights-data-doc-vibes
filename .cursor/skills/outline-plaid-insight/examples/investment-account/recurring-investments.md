@@ -54,29 +54,44 @@ Lists all **active** recurring investment activity across linked investment acco
 
 ### Calculation / analysis
 
-1. Set **detection window** to the last 6 months (`window_start` = today − 6 months, `window_end` = today).
-2. Load investment `account_id` values from `plaid_accounts` where `type = investment`.
-3. Load `plaid_investment_transactions` for those accounts in the window. Apply **eligible types** filter. Join `plaid_investment_securities` on `security_id`.
-4. **Group candidates** by `account_id` + `security_id` (or transaction `name` if `security_id` is null) + `type`/`subtype` (e.g. `buy`/`buy`, `dividend`/`reinvested dividend`, `transfer`/`contribution`).
-5. Keep groups with **≥ 2** transactions.
-6. **Detect frequency** from the **median** gap in days between consecutive `date` values (sorted ascending). Assign the first matching bucket:
-   - **Weekly:** 5–9 days
-   - **Biweekly:** 10–15 days
-   - **Semi-monthly:** 16–22 days
-   - **Monthly:** 23–40 days
-   - **Quarterly:** 75–105 days
-   - **Annual:** 340–380 days
-   - Groups outside these ranges are **excluded** (no stable cadence).
-7. **Active filter** — keep only if `last_date` is within **1.5×** the bucket’s typical interval:
-   - Weekly: ≤ 14 days ago
-   - Biweekly: ≤ 23 days ago
-   - Semi-monthly: ≤ 33 days ago
-   - Monthly: ≤ 60 days ago
-   - Quarterly: ≤ 158 days ago
-   - Annual: ≤ 570 days ago
-8. **Typical amount** — median of `amount` across occurrences in the group (use absolute value).
-9. **Build flat rows** — `{ account_id, account_name, security_name, ticker_symbol, type, subtype, frequency, typical_amount, last_date, occurrence_count }`.
-10. **Sort rows** — by frequency order (weekly → biweekly → semi-monthly → monthly → quarterly → annual), then `typical_amount` descending.
+1. **Detection window**
+   - Last 6 months
+   - `window_start` = today − 6 months
+   - `window_end` = today
+2. **Load account scope**
+   - Investment `account_id` values from `plaid_accounts` where `type = investment`
+3. **Load transactions**
+   - `plaid_investment_transactions` for those accounts in the window
+   - Apply **eligible types** filter
+   - Join `plaid_investment_securities` on `security_id`
+4. **Group candidates**
+   - By `account_id` + `security_id` (or transaction `name` if `security_id` is null) + `type`/`subtype` (e.g. `buy`/`buy`, `dividend`/`reinvested dividend`, `transfer`/`contribution`)
+5. **Minimum group size**
+   - Keep groups with **≥ 2** transactions
+6. **Detect frequency**
+   - Compute from the **median** gap in days between consecutive `date` values (sorted ascending)
+   - Assign the first matching bucket:
+     - **Weekly:** 5–9 days
+     - **Biweekly:** 10–15 days
+     - **Semi-monthly:** 16–22 days
+     - **Monthly:** 23–40 days
+     - **Quarterly:** 75–105 days
+     - **Annual:** 340–380 days
+     - Groups outside these ranges are **excluded** (no stable cadence)
+7. **Active filter**
+   - Keep only if `last_date` is within **1.5×** the bucket's typical interval:
+     - Weekly: ≤ 14 days ago
+     - Biweekly: ≤ 23 days ago
+     - Semi-monthly: ≤ 33 days ago
+     - Monthly: ≤ 60 days ago
+     - Quarterly: ≤ 158 days ago
+     - Annual: ≤ 570 days ago
+8. **Typical amount**
+   - Median of `amount` across occurrences in the group (use absolute value)
+9. **Build flat rows**
+   - `{ account_id, account_name, security_name, ticker_symbol, type, subtype, frequency, typical_amount, last_date, occurrence_count }`
+10. **Sort rows**
+    - By frequency order (weekly → biweekly → semi-monthly → monthly → quarterly → annual), then `typical_amount` descending
 
 ### Data output
 

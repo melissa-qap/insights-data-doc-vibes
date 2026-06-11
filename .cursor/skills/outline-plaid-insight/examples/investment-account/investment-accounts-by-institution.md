@@ -48,19 +48,32 @@ Source: Plaid Item metadata at link time (not a standard Plaid datatable row tod
 
 ### Calculation / analysis
 
-1. Load latest snapshot: `as_of` = `MAX(synced_at)` from `plaid_accounts` for the user.
-2. Load `plaid_items` for the user. Join `plaid_accounts` on `item_id`.
-3. Filter to investment accounts at `synced_at = as_of` (`type = investment`).
-4. **Per-account balance** — for each account:
-   - If `balances_current` IS NOT NULL: `balance = balances_current`, `balance_source = account`.
-   - Else: `balance = SUM(institution_value)` from `plaid_investment_holdings` for that `account_id` at `as_of`; `balance_source = holdings`. Exclude null `institution_value` from the sum.
-   - If balance is still null or the holdings sum is zero with no rows, **exclude** the account from output.
-5. **Build account rows** — `{ account_id, name, mask, subtype, balance, balance_source, item_id, institution_name }` where `name` prefers `plaid_accounts.name`; append ` ••{mask}` in the UI layer when `mask` is present. `institution_name` from `plaid_items`; if missing, use `"Unknown institution"`.
-6. **Group by institution** — group accounts by `item_id`. For each group:
-   - `institution_name` from `plaid_items` (same for all accounts in the group)
-   - `accounts[]` = account rows in the group
-   - `total_balance` = sum of `accounts[].balance` (derived from accounts, not computed separately)
-7. **Sort** — institutions by `total_balance` descending; accounts within each institution by `balance` descending.
+1. **Load snapshot**
+   - `as_of` = `MAX(synced_at)` from `plaid_accounts` for the user
+2. **Load accounts and institutions**
+   - Load `plaid_items` for the user
+   - Join `plaid_accounts` on `item_id`
+3. **Filter to investment accounts**
+   - At `synced_at = as_of`
+   - `type = investment`
+4. **Per-account balance**
+   - For each account:
+     - If `balances_current` IS NOT NULL: `balance = balances_current`, `balance_source = account`
+     - Else: `balance = SUM(institution_value)` from `plaid_investment_holdings` for that `account_id` at `as_of`; `balance_source = holdings`. Exclude null `institution_value` from the sum
+     - If balance is still null or the holdings sum is zero with no rows, **exclude** the account from output
+5. **Build account rows**
+   - `{ account_id, name, mask, subtype, balance, balance_source, item_id, institution_name }`
+   - `name` prefers `plaid_accounts.name`; append ` ••{mask}` in the UI layer when `mask` is present
+   - `institution_name` from `plaid_items`; if missing, use `"Unknown institution"`
+6. **Group by institution**
+   - Group accounts by `item_id`
+   - For each group:
+     - `institution_name` from `plaid_items` (same for all accounts in the group)
+     - `accounts[]` = account rows in the group
+     - `total_balance` = sum of `accounts[].balance` (derived from accounts, not computed separately)
+7. **Sort**
+   - Institutions by `total_balance` descending
+   - Accounts within each institution by `balance` descending
 
 **Portfolio total:** Not included in this insight. Combined investment value is provided by [investment performance chart](investment-performance-chart.md) (`end_value` at the active timeframe end) and displayed alongside this list in the UI.
 

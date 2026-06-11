@@ -1,8 +1,40 @@
 # Plaid API Response Schema — Reference
 
-Key fields from each Plaid endpoint used as data sources for insights. Only insight-relevant fields are listed; auth/request fields omitted.
+Hybrid reference: **datatable mappings** for insight queries plus **API field documentation** mirroring [Plaid's official API spec](https://plaid.com/docs/api/). Insight logic queries datatables only — never call Plaid APIs at runtime.
 
-**Assumption:** All Plaid API responses are already imported into the datatables below. Insight logic queries these tables — never call Plaid APIs at runtime.
+**Assumption:** All Plaid API responses are already imported into the datatables below.
+
+---
+
+## Account APIs overview
+
+Plaid uses a shared **Account object** across endpoints. There is no single "get everything" endpoint — account metadata, balances, and enrichment come from different products.
+
+### Endpoint comparison
+
+| Endpoint | Plaid docs | Account scope | Balance freshness | Extra account fields | Maps to datatable |
+|---|---|---|---|---|---|
+| `/accounts/get` | [Accounts API](https://plaid.com/docs/api/accounts/#accountsget) | All active Item accounts | Cached (~daily if Transactions/Investments/Liabilities enabled) | Standard Account object | `plaid_accounts` (alternate) |
+| `/accounts/balance/get` | [Signal/Balance API](https://plaid.com/docs/api/products/signal/#accountsbalanceget) | All active Item accounts | Real-time (sync call to institution) | Standard Account object | `plaid_accounts` (primary) |
+| `/liabilities/get` | [Liabilities API](https://plaid.com/docs/api/products/liabilities/) | All Item accounts | Cached (~daily) | Standard Account object + `liabilities.*` | Liability tables; `accounts[]` joinable to `plaid_accounts` |
+| `/investments/holdings/get` | [Investments API](https://plaid.com/docs/api/products/investments/) | Investment-type accounts only | Cached | `balances.margin_loan_amount` | Holdings/securities tables; investment `accounts[]` |
+| `/auth/get` | [Auth API](https://plaid.com/docs/api/products/auth/) | Checking, savings, cash management | Cached when present | `verification_status`, `persistent_account_id` + `numbers.*` | *(secondary — no datatable)* |
+| `/identity/get` | [Identity API](https://plaid.com/docs/api/products/identity/) | Filterable by `account_ids` | N/A | `owners[]` (names, emails, phones, addresses) | *(secondary — no datatable)* |
+| `/transactions/sync` | [Transactions API](https://plaid.com/docs/api/products/transactions/) | Subset: accounts with transactions in response | Cached | Standard Account object | `plaid_transactions` only; **not** canonical account list |
+| `/transactions/get` | [Transactions API](https://plaid.com/docs/api/products/transactions/) | Same subset as sync | Cached | Standard Account object | *(secondary — prefer sync)* |
+| `/investments/transactions/get` | [Investments API](https://plaid.com/docs/api/products/investments/) | Investment accounts with transaction history | Cached + `margin_loan_amount` | Account object for investment accounts | `plaid_investment_transactions` |
+
+**Out of scope:** `/signal/evaluate`, `/processor/*` variants.
+
+### Import guidance for `plaid_accounts`
+
+| Rule | Detail |
+|---|---|
+| **Primary source** | `/accounts/balance/get` — real-time balances for PFM snapshots |
+| **Alternate source** | `/accounts/get` — free, cached balances; acceptable for lower-cost refresh |
+| **Do not use** | `/transactions/sync` or `/transactions/get` `accounts[]` as the canonical account list — partial subset; omits investment accounts |
+| **Investment margin** | Populate `balances_margin_loan_amount` from `/investments/holdings/get` `accounts[]` when available (investment accounts only) |
+| **Insight fields used** | `account_id`, `name`, `mask`, `type`, `subtype`, `balances_current`, `balances_available`, `item_id` |
 
 ---
 
@@ -24,8 +56,8 @@ For tables that accumulate history across syncs, keep one row per entity **per s
 
 | Endpoint | Table(s) |
 |---|---|
-| `/accounts/balance/get` | `plaid_accounts` |
-| `/transactions/sync` | `plaid_transactions`, `plaid_transactions_removed` |
+| `/accounts/balance/get` (primary), `/accounts/get` (alternate) | `plaid_accounts` |
+| `/transactions/sync` | `plaid_transactions` |
 | `/investments/holdings/get` | `plaid_investment_holdings`, `plaid_investment_securities` |
 | `/investments/transactions/get` | `plaid_investment_transactions` |
 | `/liabilities/get` | `plaid_liabilities_credit`, `plaid_liabilities_student`, `plaid_liabilities_mortgage` |
@@ -56,7 +88,7 @@ Source: external fund-composition data (not a Plaid endpoint). One or more rows 
 | Column | Type | Notes |
 |---|---|---|
 | `security_id` | string | Join to `plaid_investment_securities.security_id` |
-| `asset_class` | string | `equity`, `bonds`, `cash`, `crypto`, `international_equity` |
+| `asset_class` | string | See [enum_asset_class](#enum_asset_class) |
 | `weight` | number | Share of security market value in this class (0–1) |
 | `as_of` | date \| null | Optional composition freshness |
 
@@ -66,7 +98,9 @@ Source: external fund-composition data (not a Plaid endpoint). One or more rows 
 
 ### `plaid_accounts`
 
-Source: `/accounts/balance/get` → `accounts[]`. One row per account per sync.
+Source: `/accounts/balance/get` (primary) or `/accounts/get` (alternate) → `accounts[]`. One row per account per sync. Both endpoints produce identical column mapping.
+
+Optional enrichment: `balances_margin_loan_amount` from `/investments/holdings/get` `accounts[]` (investment accounts only; nullable otherwise).
 
 | Column | Type | Source field |
 |---|---|---|
@@ -74,14 +108,15 @@ Source: `/accounts/balance/get` → `accounts[]`. One row per account per sync.
 | `name` | string | `name` |
 | `official_name` | string \| null | `official_name` |
 | `mask` | string \| null | `mask` |
-| `type` | string | `type` |
-| `subtype` | string \| null | `subtype` |
+| `type` | string | See [enum_account_type](#enum_account_type) |
+| `subtype` | string \| null | See [enum_account_subtype](#enum_account_subtype) |
 | `balances_available` | number \| null | `balances.available` |
 | `balances_current` | number \| null | `balances.current` |
 | `balances_limit` | number \| null | `balances.limit` |
 | `balances_iso_currency_code` | string \| null | `balances.iso_currency_code` |
 | `balances_unofficial_currency_code` | string \| null | `balances.unofficial_currency_code` |
 | `balances_last_updated_datetime` | string \| null | `balances.last_updated_datetime` |
+| `balances_margin_loan_amount` | number \| null | `balances.margin_loan_amount` (investment endpoints only) |
 
 **Query patterns:**
 - Current state: `WHERE user_id = ? AND synced_at = (SELECT MAX(synced_at) FROM plaid_accounts WHERE user_id = ?)`
@@ -91,7 +126,7 @@ Source: `/accounts/balance/get` → `accounts[]`. One row per account per sync.
 
 ### `plaid_transactions`
 
-Source: `/transactions/sync` → `added[]` / `modified[]`. One row per transaction (upsert on `transaction_id`; retain latest `synced_at`).
+Source: `/transactions/sync` → `added[]`, `modified[]`, `removed[]`. One row per transaction (upsert on `transaction_id`; retain latest `synced_at`). Rows from `removed[]` set `removed = true` (row retained, not deleted).
 
 | Column | Type | Source field |
 |---|---|---|
@@ -103,26 +138,15 @@ Source: `/transactions/sync` → `added[]` / `modified[]`. One row per transacti
 | `name` | string | `name` |
 | `merchant_name` | string \| null | `merchant_name` |
 | `pending` | boolean | `pending` |
-| `payment_channel` | string | `payment_channel` |
-| `personal_finance_category_primary` | string | `personal_finance_category.primary` |
-| `personal_finance_category_detailed` | string | `personal_finance_category.detailed` |
-| `personal_finance_category_confidence_level` | string | `personal_finance_category.confidence_level` |
+| `removed` | boolean | Set `true` when transaction appears in `removed[]`; default `false` for `added[]` / `modified[]` |
+| `payment_channel` | string | See [enum_payment_channel](#enum_payment_channel) |
+| `personal_finance_category_primary` | string | See [enum_pfc_primary](#enum_pfc_primary) |
+| `personal_finance_category_detailed` | string | See [enum_pfc_detailed](#enum_pfc_detailed) |
+| `personal_finance_category_confidence_level` | string | See [enum_pfc_confidence_level](#enum_pfc_confidence_level) |
 | `location_city` | string \| null | `location.city` |
 | `location_region` | string \| null | `location.region` |
 | `iso_currency_code` | string \| null | `iso_currency_code` |
 | `unofficial_currency_code` | string \| null | `unofficial_currency_code` |
-
----
-
-### `plaid_transactions_removed`
-
-Source: `/transactions/sync` → `removed[]`. One row per removed transaction per sync.
-
-| Column | Type | Source field |
-|---|---|---|
-| `transaction_id` | string | `transaction_id` |
-
-Join or exclude against `plaid_transactions` when building the active transaction set.
 
 ---
 
@@ -153,7 +177,7 @@ Source: `/investments/holdings/get` → `securities[]`. One row per security per
 | `security_id` | string | `security_id` |
 | `name` | string \| null | `name` |
 | `ticker_symbol` | string \| null | `ticker_symbol` |
-| `type` | string | `type` |
+| `type` | string | See [enum_investment_security_type](#enum_investment_security_type) |
 | `isin` | string \| null | `isin` |
 | `close_price` | number \| null | `close_price` |
 | `close_price_as_of` | date \| null | `close_price_as_of` |
@@ -178,8 +202,8 @@ Source: `/investments/transactions/get` → `investment_transactions[]`. One row
 | `amount` | number | `amount` |
 | `price` | number | `price` |
 | `fees` | number \| null | `fees` |
-| `type` | string | `type` |
-| `subtype` | string | `subtype` |
+| `type` | string | See [enum_investment_transaction_type](#enum_investment_transaction_type) |
+| `subtype` | string | See [enum_investment_transaction_subtype](#enum_investment_transaction_subtype) |
 | `iso_currency_code` | string \| null | `iso_currency_code` |
 | `unofficial_currency_code` | string \| null | `unofficial_currency_code` |
 
@@ -215,7 +239,7 @@ Source: `/liabilities/get` → `liabilities.student[]`. One row per student loan
 | `last_payment_amount` | number \| null | `last_payment_amount` |
 | `last_payment_date` | date \| null | `last_payment_date` |
 | `loan_name` | string \| null | `loan_name` |
-| `loan_status_type` | string | `loan_status.type` |
+| `loan_status_type` | string | See [enum_loan_status_type](#enum_loan_status_type) |
 | `minimum_payment_amount` | number \| null | `minimum_payment_amount` |
 | `next_payment_due_date` | date \| null | `next_payment_due_date` |
 | `origination_date` | date \| null | `origination_date` |
@@ -232,7 +256,7 @@ Source: `/liabilities/get` → `liabilities.mortgage[]`. One row per mortgage pe
 |---|---|---|
 | `account_id` | string | `account_id` |
 | `interest_rate_percentage` | number \| null | `interest_rate.percentage` |
-| `interest_rate_type` | string \| null | `interest_rate.type` |
+| `interest_rate_type` | string \| null | See [enum_interest_rate_type](#enum_interest_rate_type) |
 | `last_payment_amount` | number \| null | `last_payment_amount` |
 | `last_payment_date` | date \| null | `last_payment_date` |
 | `loan_term` | string \| null | `loan_term` |
@@ -246,128 +270,885 @@ Source: `/liabilities/get` → `liabilities.mortgage[]`. One row per mortgage pe
 
 ---
 
+## Enum reference
+
+Lookup tables for enum-like datatable columns. One row per allowed value.
+
+### Enum index
+
+| Datatable column | Enum table |
+| --- | --- |
+| `plaid_accounts.type` | [enum_account_type](#enum_account_type) |
+| `plaid_accounts.subtype` | [enum_account_subtype](#enum_account_subtype) |
+| `plaid_transactions.payment_channel` | [enum_payment_channel](#enum_payment_channel) |
+| `plaid_transactions.personal_finance_category_primary` | [enum_pfc_primary](#enum_pfc_primary) |
+| `plaid_transactions.personal_finance_category_detailed` | [enum_pfc_detailed](#enum_pfc_detailed) |
+| `plaid_transactions.personal_finance_category_confidence_level` | [enum_pfc_confidence_level](#enum_pfc_confidence_level) |
+| `plaid_investment_securities.type` | [enum_investment_security_type](#enum_investment_security_type) |
+| `plaid_investment_transactions.type` | [enum_investment_transaction_type](#enum_investment_transaction_type) |
+| `plaid_investment_transactions.subtype` | [enum_investment_transaction_subtype](#enum_investment_transaction_subtype) |
+| `plaid_liabilities_student.loan_status_type` | [enum_loan_status_type](#enum_loan_status_type) |
+| `plaid_liabilities_mortgage.interest_rate_type` | [enum_interest_rate_type](#enum_interest_rate_type) |
+| `security_asset_allocation.asset_class` | [enum_asset_class](#enum_asset_class) |
+
+---
+
+### enum_account_type
+
+`plaid_accounts.type` — high-level account classification.
+
+| Value | Description |
+| --- | --- |
+| `investment` | Investment account (brokerage, 401k, IRA, etc.) |
+| `credit` | Credit card or line of credit |
+| `depository` | Cash account (checking, savings, etc.) |
+| `loan` | Loan account (mortgage, student, auto, etc.) |
+| `brokerage` | Legacy type name for investment (API ≤ 2018-05-22) |
+| `other` | Non-specified account type |
+
+Source: [Plaid Account type schema](https://plaid.com/docs/api/accounts/#account-type-schema)
+
+---
+
+### enum_account_subtype
+
+`plaid_accounts.subtype` — account subtype. Valid combinations depend on `type`.
+
+| Type | Subtype | Description |
+| --- | --- | --- |
+| `depository` | `checking` | Checking account |
+| `depository` | `savings` | Savings account |
+| `depository` | `hsa` | Health Savings Account (cash only, US) |
+| `depository` | `cd` | Certificate of deposit |
+| `depository` | `money market` | Money market account |
+| `depository` | `paypal` | PayPal depository account |
+| `depository` | `prepaid` | Prepaid debit card |
+| `depository` | `cash management` | Cash management account at a brokerage |
+| `depository` | `ebt` | Electronic Benefit Transfer (US) |
+| `depository` | `cash isa` | Cash ISA (UK) |
+| `depository` | `business` | Business depository account |
+| `depository` | `payroll` | Payroll account |
+| `depository` | `limited purpose checking` | Limited-purpose checking (opt-in in Link) |
+| `credit` | `credit card` | Bank-issued credit card |
+| `credit` | `paypal` | PayPal-issued credit card |
+| `credit` | `line of credit` | Pre-approved line of credit |
+| `loan` | `auto` | Auto loan |
+| `loan` | `business` | Business loan |
+| `loan` | `commercial` | Commercial loan |
+| `loan` | `construction` | Construction loan |
+| `loan` | `consumer` | Consumer loan |
+| `loan` | `home equity` | Home Equity Line of Credit (HELOC) |
+| `loan` | `loan` | General loan |
+| `loan` | `mortgage` | Mortgage loan |
+| `loan` | `overdraft` | Pre-approved overdraft tied to checking |
+| `loan` | `line of credit` | Pre-approved line of credit |
+| `loan` | `student` | Student loan |
+| `loan` | `other` | Other or unknown loan type |
+| `investment` | `401a` | 401(a) retirement plan (US) |
+| `investment` | `401k` | 401(k) retirement account (US) |
+| `investment` | `403B` | 403(b) retirement account (US) |
+| `investment` | `457b` | 457(b) deferred-compensation plan (US) |
+| `investment` | `529` | 529 college savings plan (US) |
+| `investment` | `brokerage` | Standard brokerage account |
+| `investment` | `cash isa` | Interest-bearing ISA (UK) |
+| `investment` | `crypto exchange` | Cryptocurrency exchange account |
+| `investment` | `education savings account` | Coverdell ESA (US) |
+| `investment` | `fhsa` | First Home Savings Account (Canada) |
+| `investment` | `fixed annuity` | Fixed annuity |
+| `investment` | `gic` | Guaranteed Investment Certificate (Canada) |
+| `investment` | `health reimbursement arrangement` | Health Reimbursement Arrangement (US) |
+| `investment` | `hsa` | Health Savings Account (non-cash, US) |
+| `investment` | `ira` | Traditional IRA (US) |
+| `investment` | `isa` | Individual Savings Account (UK) |
+| `investment` | `keogh` | Keogh self-employed retirement plan (US) |
+| `investment` | `lif` | Life Income Fund (Canada) |
+| `investment` | `life insurance` | Life insurance account |
+| `investment` | `lira` | Locked-in Retirement Account (Canada) |
+| `investment` | `lrif` | Locked-in Retirement Income Fund (Canada) |
+| `investment` | `lrsp` | Locked-in Retirement Savings Plan (Canada) |
+| `investment` | `mutual fund` | Mutual fund account |
+| `investment` | `non-custodial wallet` | Non-custodial crypto wallet |
+| `investment` | `non-taxable brokerage account` | Non-taxable brokerage account |
+| `investment` | `other` | Other investment account |
+| `investment` | `other annuity` | Other annuity account |
+| `investment` | `other insurance` | Other insurance account |
+| `investment` | `pension` | Standard pension account |
+| `investment` | `prif` | Prescribed Registered Retirement Income Fund (Canada) |
+| `investment` | `profit sharing plan` | Profit sharing plan |
+| `investment` | `qshr` | Qualifying share account |
+| `investment` | `rdsp` | Registered Disability Savings Plan (Canada) |
+| `investment` | `resp` | Registered Education Savings Plan (Canada) |
+| `investment` | `retirement` | Retirement account (other) |
+| `investment` | `rlif` | Restricted Life Income Fund (Canada) |
+| `investment` | `roth` | Roth IRA (US) |
+| `investment` | `roth 401k` | Roth 401(k) (US) |
+| `investment` | `roth 403B` | Roth 403(b) (US) |
+| `investment` | `roth 457b` | Roth 457(b) (US) |
+| `investment` | `roth pension` | Roth pension account |
+| `investment` | `roth profit sharing plan` | Roth profit sharing plan |
+| `investment` | `roth thrift savings plan` | Roth Thrift Savings Plan (US) |
+| `investment` | `rrif` | Registered Retirement Income Fund (Canada) |
+| `investment` | `rrsp` | Registered Retirement Savings Plan (Canada) |
+| `investment` | `sarsep` | SARSEP retirement plan (US) |
+| `investment` | `sep ira` | SEP IRA (US) |
+| `investment` | `simple ira` | SIMPLE IRA (US) |
+| `investment` | `sipp` | Self-Invested Personal Pension (UK) |
+| `investment` | `stock plan` | Stock plan account |
+| `investment` | `thrift savings plan` | Thrift Savings Plan (US) |
+| `investment` | `tfsa` | Tax-Free Savings Account (Canada) |
+| `investment` | `trust` | Trust account |
+| `investment` | `ugma` | Uniform Gift to Minors Act (US) |
+| `investment` | `utma` | Uniform Transfers to Minors Act (US) |
+| `investment` | `variable annuity` | Variable annuity |
+| `other` | `other` | Other or unknown account type |
+
+Source: [Plaid Account type schema](https://plaid.com/docs/api/accounts/#account-type-schema)
+
+---
+
+### enum_payment_channel
+
+`plaid_transactions.payment_channel` — how the transaction was initiated.
+
+| Value | Description |
+| --- | --- |
+| `online` | Online or digital payment |
+| `in store` | In-person at a physical location |
+| `other` | Other or unknown channel |
+
+---
+
+### enum_pfc_primary
+
+`plaid_transactions.personal_finance_category_primary` — top-level transaction category (PFCv1).
+
+| Value | Description |
+| --- | --- |
+| `INCOME` | Wages, dividends, interest, tax refunds, and other income |
+| `TRANSFER_IN` | Inbound transfers, deposits, and loan disbursements |
+| `TRANSFER_OUT` | Outbound transfers, withdrawals, and investment funding |
+| `LOAN_PAYMENTS` | Credit card, mortgage, student, auto, and other loan payments |
+| `BANK_FEES` | ATM, overdraft, interest, and other bank fees |
+| `ENTERTAINMENT` | Casinos, music, movies, games, and sporting events |
+| `FOOD_AND_DRINK` | Restaurants, groceries, coffee, and fast food |
+| `GENERAL_MERCHANDISE` | Retail, clothing, electronics, and online marketplaces |
+| `HOME_IMPROVEMENT` | Furniture, hardware, repair, and security |
+| `MEDICAL` | Dental, pharmacy, primary care, and veterinary |
+| `PERSONAL_CARE` | Gyms, hair and beauty, laundry |
+| `GENERAL_SERVICES` | Accounting, automotive, childcare, education, insurance |
+| `GOVERNMENT_AND_NON_PROFIT` | Donations, taxes, and government agencies |
+| `TRANSPORTATION` | Gas, parking, public transit, taxis, tolls |
+| `TRAVEL` | Flights, lodging, rental cars |
+| `RENT_AND_UTILITIES` | Rent, gas/electric, internet, water, phone |
+
+PFCv2 adds subcategories (income, loan disbursement/repayment, bank fees). Default import is PFCv1 unless `personal_finance_category_version: v2` is set. See [PFC migration guide](https://plaid.com/docs/transactions/pfc-migration/).
+
+---
+
+### enum_pfc_detailed
+
+`plaid_transactions.personal_finance_category_detailed` — granular transaction category (PFCv1).
+
+| Primary | Detailed | Description |
+| --- | --- | --- |
+| `INCOME` | `INCOME_DIVIDENDS` | Dividends from investment accounts |
+| `INCOME` | `INCOME_INTEREST_EARNED` | Income from interest on savings accounts |
+| `INCOME` | `INCOME_RETIREMENT_PENSION` | Income from pension payments  |
+| `INCOME` | `INCOME_TAX_REFUND` | Income from tax refunds |
+| `INCOME` | `INCOME_UNEMPLOYMENT` | Income from unemployment benefits, including unemployment insurance and healthcare |
+| `INCOME` | `INCOME_WAGES` | Income from salaries, gig-economy work, and tips earned |
+| `INCOME` | `INCOME_OTHER_INCOME` | Other miscellaneous income, including alimony, social security, child support, and rental |
+| `TRANSFER_IN` | `TRANSFER_IN_CASH_ADVANCES_AND_LOANS` | Loans and cash advances deposited into a bank account |
+| `TRANSFER_IN` | `TRANSFER_IN_DEPOSIT` | Cash, checks, and ATM deposits into a bank account |
+| `TRANSFER_IN` | `TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS` | Inbound transfers to an investment or retirement account |
+| `TRANSFER_IN` | `TRANSFER_IN_SAVINGS` | Inbound transfers to a savings account |
+| `TRANSFER_IN` | `TRANSFER_IN_ACCOUNT_TRANSFER` | General inbound transfers from another account |
+| `TRANSFER_IN` | `TRANSFER_IN_OTHER_TRANSFER_IN` | Other miscellaneous inbound transactions |
+| `TRANSFER_OUT` | `TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS` | Transfers to an investment or retirement account, including investment apps such as Acorns, Betterment |
+| `TRANSFER_OUT` | `TRANSFER_OUT_SAVINGS` | Outbound transfers to savings accounts |
+| `TRANSFER_OUT` | `TRANSFER_OUT_WITHDRAWAL` | Withdrawals from a bank account |
+| `TRANSFER_OUT` | `TRANSFER_OUT_ACCOUNT_TRANSFER` | General outbound transfers to another account |
+| `TRANSFER_OUT` | `TRANSFER_OUT_OTHER_TRANSFER_OUT` | Other miscellaneous outbound transactions |
+| `LOAN_PAYMENTS` | `LOAN_PAYMENTS_CAR_PAYMENT` | Car loans and leases |
+| `LOAN_PAYMENTS` | `LOAN_PAYMENTS_CREDIT_CARD_PAYMENT` | Payments to a credit card. These are positive amounts for credit card subtypes and negative for depository subtypes |
+| `LOAN_PAYMENTS` | `LOAN_PAYMENTS_PERSONAL_LOAN_PAYMENT` | Personal loans, including cash advances and buy now pay later repayments |
+| `LOAN_PAYMENTS` | `LOAN_PAYMENTS_MORTGAGE_PAYMENT` | Payments on mortgages |
+| `LOAN_PAYMENTS` | `LOAN_PAYMENTS_STUDENT_LOAN_PAYMENT` | Payments on student loans. For college tuition, refer to "General Services - Education" |
+| `LOAN_PAYMENTS` | `LOAN_PAYMENTS_OTHER_PAYMENT` | Other miscellaneous debt payments |
+| `BANK_FEES` | `BANK_FEES_ATM_FEES` | Fees incurred for out-of-network ATMs |
+| `BANK_FEES` | `BANK_FEES_FOREIGN_TRANSACTION_FEES` | Fees incurred on non-domestic transactions |
+| `BANK_FEES` | `BANK_FEES_INSUFFICIENT_FUNDS` | Fees relating to insufficient funds |
+| `BANK_FEES` | `BANK_FEES_INTEREST_CHARGE` | Fees incurred for interest on purchases, including not-paid-in-full or interest on cash advances |
+| `BANK_FEES` | `BANK_FEES_OVERDRAFT_FEES` | Fees incurred when an account is in overdraft |
+| `BANK_FEES` | `BANK_FEES_OTHER_BANK_FEES` | Other miscellaneous bank fees |
+| `ENTERTAINMENT` | `ENTERTAINMENT_CASINOS_AND_GAMBLING` | Gambling, casinos, and sports betting |
+| `ENTERTAINMENT` | `ENTERTAINMENT_MUSIC_AND_AUDIO` | Digital and in-person music purchases, including music streaming services |
+| `ENTERTAINMENT` | `ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS` | Purchases made at sporting events, music venues, concerts, museums, and amusement parks |
+| `ENTERTAINMENT` | `ENTERTAINMENT_TV_AND_MOVIES` | In home movie streaming services and movie theaters |
+| `ENTERTAINMENT` | `ENTERTAINMENT_VIDEO_GAMES` | Digital and in-person video game purchases |
+| `ENTERTAINMENT` | `ENTERTAINMENT_OTHER_ENTERTAINMENT` | Other miscellaneous entertainment purchases, including night life and adult entertainment |
+| `FOOD_AND_DRINK` | `FOOD_AND_DRINK_BEER_WINE_AND_LIQUOR` | Beer, Wine & Liquor Stores |
+| `FOOD_AND_DRINK` | `FOOD_AND_DRINK_COFFEE` | Purchases at coffee shops or cafes |
+| `FOOD_AND_DRINK` | `FOOD_AND_DRINK_FAST_FOOD` | Dining expenses for fast food chains |
+| `FOOD_AND_DRINK` | `FOOD_AND_DRINK_GROCERIES` | Purchases for fresh produce and groceries, including farmers' markets |
+| `FOOD_AND_DRINK` | `FOOD_AND_DRINK_RESTAURANT` | Dining expenses for restaurants, bars, gastropubs, and diners |
+| `FOOD_AND_DRINK` | `FOOD_AND_DRINK_VENDING_MACHINES` | Purchases made at vending machine operators |
+| `FOOD_AND_DRINK` | `FOOD_AND_DRINK_OTHER_FOOD_AND_DRINK` | Other miscellaneous food and drink, including desserts, juice bars, and delis |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS` | Books, magazines, and news  |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES` | Apparel, shoes, and jewelry |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_CONVENIENCE_STORES` | Purchases at convenience stores |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_DEPARTMENT_STORES` | Retail stores with wide ranges of consumer goods, typically specializing in clothing and home goods |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_DISCOUNT_STORES` | Stores selling goods at a discounted price |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_ELECTRONICS` | Electronics stores and websites |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_GIFTS_AND_NOVELTIES` | Photo, gifts, cards, and floral stores |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_OFFICE_SUPPLIES` | Stores that specialize in office goods |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_ONLINE_MARKETPLACES` | Multi-purpose e-commerce platforms such as Etsy, Ebay and Amazon |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_PET_SUPPLIES` | Pet supplies and pet food |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_SPORTING_GOODS` | Sporting goods, camping gear, and outdoor equipment |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_SUPERSTORES` | Superstores such as Target and Walmart, selling both groceries and general merchandise |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_TOBACCO_AND_VAPE` | Purchases for tobacco and vaping products |
+| `GENERAL_MERCHANDISE` | `GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE` | Other miscellaneous merchandise, including toys, hobbies, and arts and crafts |
+| `HOME_IMPROVEMENT` | `HOME_IMPROVEMENT_FURNITURE` | Furniture, bedding, and home accessories |
+| `HOME_IMPROVEMENT` | `HOME_IMPROVEMENT_HARDWARE` | Building materials, hardware stores, paint, and wallpaper |
+| `HOME_IMPROVEMENT` | `HOME_IMPROVEMENT_REPAIR_AND_MAINTENANCE` | Plumbing, lighting, gardening, and roofing |
+| `HOME_IMPROVEMENT` | `HOME_IMPROVEMENT_SECURITY` | Home security system purchases |
+| `HOME_IMPROVEMENT` | `HOME_IMPROVEMENT_OTHER_HOME_IMPROVEMENT` | Other miscellaneous home purchases, including pool installation and pest control |
+| `MEDICAL` | `MEDICAL_DENTAL_CARE` | Dentists and general dental care |
+| `MEDICAL` | `MEDICAL_EYE_CARE` | Optometrists, contacts, and glasses stores |
+| `MEDICAL` | `MEDICAL_NURSING_CARE` | Nursing care and facilities |
+| `MEDICAL` | `MEDICAL_PHARMACIES_AND_SUPPLEMENTS` | Pharmacies and nutrition shops |
+| `MEDICAL` | `MEDICAL_PRIMARY_CARE` | Doctors and physicians |
+| `MEDICAL` | `MEDICAL_VETERINARY_SERVICES` | Prevention and care procedures for animals |
+| `MEDICAL` | `MEDICAL_OTHER_MEDICAL` | Other miscellaneous medical, including blood work, hospitals, and ambulances |
+| `PERSONAL_CARE` | `PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS` | Gyms, fitness centers, and workout classes |
+| `PERSONAL_CARE` | `PERSONAL_CARE_HAIR_AND_BEAUTY` | Manicures, haircuts, waxing, spa/massages, and bath and beauty products  |
+| `PERSONAL_CARE` | `PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING` | Wash and fold, and dry cleaning expenses |
+| `PERSONAL_CARE` | `PERSONAL_CARE_OTHER_PERSONAL_CARE` | Other miscellaneous personal care, including mental health apps and services |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_ACCOUNTING_AND_FINANCIAL_PLANNING` | Financial planning, and tax and accounting services |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_AUTOMOTIVE` | Oil changes, car washes, repairs, and towing |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_CHILDCARE` | Babysitters and daycare |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_CONSULTING_AND_LEGAL` | Consulting and legal services |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_EDUCATION` | Elementary, high school, professional schools, and college tuition |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_INSURANCE` | Insurance for auto, home, and healthcare |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_POSTAGE_AND_SHIPPING` | Mail, packaging, and shipping services |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_STORAGE` | Storage services and facilities |
+| `GENERAL_SERVICES` | `GENERAL_SERVICES_OTHER_GENERAL_SERVICES` | Other miscellaneous services, including advertising and cloud storage  |
+| `GOVERNMENT_AND_NON_PROFIT` | `GOVERNMENT_AND_NON_PROFIT_DONATIONS` | Charitable, political, and religious donations |
+| `GOVERNMENT_AND_NON_PROFIT` | `GOVERNMENT_AND_NON_PROFIT_GOVERNMENT_DEPARTMENTS_AND_AGENCIES` | Government departments and agencies, such as driving licences, and passport renewal |
+| `GOVERNMENT_AND_NON_PROFIT` | `GOVERNMENT_AND_NON_PROFIT_TAX_PAYMENT` | Tax payments, including income and property taxes |
+| `GOVERNMENT_AND_NON_PROFIT` | `GOVERNMENT_AND_NON_PROFIT_OTHER_GOVERNMENT_AND_NON_PROFIT` | Other miscellaneous government and non-profit agencies |
+| `TRANSPORTATION` | `TRANSPORTATION_BIKES_AND_SCOOTERS` | Bike and scooter rentals |
+| `TRANSPORTATION` | `TRANSPORTATION_GAS` | Purchases at a gas station |
+| `TRANSPORTATION` | `TRANSPORTATION_PARKING` | Parking fees and expenses |
+| `TRANSPORTATION` | `TRANSPORTATION_PUBLIC_TRANSIT` | Public transportation, including rail and train, buses, and metro |
+| `TRANSPORTATION` | `TRANSPORTATION_TAXIS_AND_RIDE_SHARES` | Taxi and ride share services |
+| `TRANSPORTATION` | `TRANSPORTATION_TOLLS` | Toll expenses |
+| `TRANSPORTATION` | `TRANSPORTATION_OTHER_TRANSPORTATION` | Other miscellaneous transportation expenses |
+| `TRAVEL` | `TRAVEL_FLIGHTS` | Airline expenses |
+| `TRAVEL` | `TRAVEL_LODGING` | Hotels, motels, and hosted accommodation such as Airbnb |
+| `TRAVEL` | `TRAVEL_RENTAL_CARS` | Rental cars, charter buses, and trucks |
+| `TRAVEL` | `TRAVEL_OTHER_TRAVEL` | Other miscellaneous travel expenses |
+| `RENT_AND_UTILITIES` | `RENT_AND_UTILITIES_GAS_AND_ELECTRICITY` | Gas and electricity bills |
+| `RENT_AND_UTILITIES` | `RENT_AND_UTILITIES_INTERNET_AND_CABLE` | Internet and cable bills |
+| `RENT_AND_UTILITIES` | `RENT_AND_UTILITIES_RENT` | Rent payment |
+| `RENT_AND_UTILITIES` | `RENT_AND_UTILITIES_SEWAGE_AND_WASTE_MANAGEMENT` | Sewage and garbage disposal bills |
+| `RENT_AND_UTILITIES` | `RENT_AND_UTILITIES_TELEPHONE` | Cell phone bills |
+| `RENT_AND_UTILITIES` | `RENT_AND_UTILITIES_WATER` | Water bills |
+| `RENT_AND_UTILITIES` | `RENT_AND_UTILITIES_OTHER_UTILITIES` | Other miscellaneous utility bills |
+
+Source: [Plaid PFCv1 taxonomy CSV](https://plaid.com/documents/transactions-personal-finance-category-taxonomy.csv). PFCv2-only detailed values are not listed — see [PFC migration guide](https://plaid.com/docs/transactions/pfc-migration/).
+
+---
+
+### enum_pfc_confidence_level
+
+`plaid_transactions.personal_finance_category_confidence_level` — categorization confidence.
+
+| Value | Description |
+| --- | --- |
+| `VERY_HIGH` | Very high confidence |
+| `HIGH` | High confidence |
+| `MEDIUM` | Medium confidence |
+| `LOW` | Low confidence |
+| `UNKNOWN` | Confidence unknown |
+
+---
+
+### enum_investment_security_type
+
+`plaid_investment_securities.type` — security instrument type.
+
+**Holdings summary types** (common in `plaid_investment_securities`):
+
+| Value | Description |
+| --- | --- |
+| `equity` | Equity / common stock |
+| `etf` | Exchange-traded fund |
+| `mutual fund` | Mutual fund |
+| `fixed income` | Bonds and fixed income |
+| `cash` | Cash and cash equivalents |
+| `derivative` | Options and derivatives |
+| `other` | Other security type |
+
+**Full Plaid API enum** (may also appear in `securities[].type`):
+
+| Value | Description |
+| --- | --- |
+| `asset backed security` |  |
+| `bill` |  |
+| `bond` |  |
+| `bond with warrants` |  |
+| `cash` |  |
+| `cash management bill` |  |
+| `common stock` |  |
+| `convertible bond` |  |
+| `convertible equity` |  |
+| `cryptocurrency` |  |
+| `depositary receipt` |  |
+| `depositary receipt on debt` |  |
+| `etf` |  |
+| `float rating note` |  |
+| `fund of funds` |  |
+| `hedge fund` |  |
+| `limited partnership unit` |  |
+| `medium term note` |  |
+| `money market debt` |  |
+| `mortgage backed security` |  |
+| `municipal bond` |  |
+| `mutual fund` |  |
+| `note` |  |
+| `option` |  |
+| `other` |  |
+| `preferred convertible` |  |
+| `preferred equity` |  |
+| `private equity fund` |  |
+| `real estate investment trust` |  |
+| `structured equity product` |  |
+| `treasury inflation protected securities` |  |
+| `unit` |  |
+| `warrant` |  |
+
+Source: [Plaid Investments API](https://plaid.com/docs/api/products/investments/)
+
+---
+
+### enum_investment_transaction_type
+
+`plaid_investment_transactions.type` — high-level investment transaction type.
+
+| Value | Description |
+| --- | --- |
+| `buy` | Purchase of securities |
+| `sell` | Sale of securities |
+| `cancel` | Cancelled transaction |
+| `cash` | Cash movement (dividend, interest, etc.) |
+| `fee` | Fee or commission |
+| `transfer` | Transfer between accounts |
+
+---
+
+### enum_investment_transaction_subtype
+
+`plaid_investment_transactions.subtype` — granular investment transaction classification. Use with `type` for full context.
+
+| Value | Description |
+| --- | --- |
+| `account fee` |  |
+| `adjustment` |  |
+| `assignment` |  |
+| `buy` |  |
+| `buy to cover` |  |
+| `contribution` |  |
+| `deposit` |  |
+| `distribution` |  |
+| `dividend` |  |
+| `dividend reinvestment` |  |
+| `exercise` |  |
+| `expire` |  |
+| `fund fee` |  |
+| `interest` |  |
+| `interest receivable` |  |
+| `interest reinvestment` |  |
+| `legal fee` |  |
+| `loan payment` |  |
+| `long-term capital gain` |  |
+| `long-term capital gain reinvestment` |  |
+| `management fee` |  |
+| `margin expense` |  |
+| `merger` |  |
+| `miscellaneous fee` |  |
+| `non-qualified dividend` |  |
+| `non-resident tax` |  |
+| `pending credit` |  |
+| `pending debit` |  |
+| `qualified dividend` |  |
+| `rebalance` |  |
+| `return of principal` |  |
+| `request` |  |
+| `sell` |  |
+| `sell short` |  |
+| `send` |  |
+| `short-term capital gain` |  |
+| `short-term capital gain reinvestment` |  |
+| `spin off` |  |
+| `split` |  |
+| `stock distribution` |  |
+| `tax` |  |
+| `tax withheld` |  |
+| `trade` |  |
+| `transfer` |  |
+| `transfer fee` |  |
+| `trust fee` |  |
+| `unqualified gain` |  |
+| `withdrawal` |  |
+
+Source: [Plaid Investments API](https://plaid.com/docs/api/products/investments/)
+
+---
+
+### enum_loan_status_type
+
+`plaid_liabilities_student.loan_status_type` — student loan status.
+
+| Value | Description |
+| --- | --- |
+| `cancelled` | Loan cancelled |
+| `charged off` | Loan charged off |
+| `claim` | Claim status |
+| `consolidated` | Loan consolidated |
+| `deferment` | Payment deferred |
+| `delinquent` | Payment delinquent |
+| `discharged` | Loan discharged |
+| `extension` | Payment extension |
+| `forbearance` | Forbearance |
+| `in grace` | In grace period |
+| `in military` | Military deferment |
+| `in school` | In-school deferment |
+| `not fully disbursed` | Not fully disbursed |
+| `other` | Other status |
+| `paid in full` | Paid in full |
+| `refunded` | Refunded |
+| `repayment` | In repayment |
+| `transferred` | Loan transferred |
+| `pending idr` | Pending income-driven repayment |
+
+Source: [Plaid Liabilities API](https://plaid.com/docs/api/products/liabilities/)
+
+---
+
+### enum_interest_rate_type
+
+`plaid_liabilities_mortgage.interest_rate_type` — mortgage interest rate type.
+
+| Value | Description |
+| --- | --- |
+| `fixed` | Fixed interest rate |
+| `variable` | Variable interest rate |
+
+---
+
+### enum_asset_class
+
+`security_asset_allocation.asset_class` — fund composition class (extension table, project-defined).
+
+| Value | Description |
+| --- | --- |
+| `equity` | Equity holdings |
+| `bonds` | Fixed income / bonds |
+| `cash` | Cash and equivalents |
+| `crypto` | Cryptocurrency |
+| `international_equity` | International equity |
+
+---
+
 ## API Field Reference
 
-Below is the original Plaid response field documentation. Column names in the tables above map directly to these fields.
+Plaid response field documentation. Datatable column names map to these fields via underscore flattening (see [Data Tables](#data-tables)). Account endpoints reference the shared Account object defined below.
+
+---
+
+## Shared Account object
+
+Returned in `accounts[]` by most endpoints. Field availability varies by endpoint — see per-endpoint notes.
+
+### Core fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `account_id` | string | Unique account identifier. Case-sensitive. Changes if account is reconciled differently or Item is re-linked. Closed accounts are not returned. |
+| `name` | string | Account name (user-assigned or institution-assigned) |
+| `official_name` | string \| null | Official name from the institution |
+| `mask` | string \| null | Last 2–4 alphanumeric characters of account number. May be non-unique within an Item. |
+| `type` | string | See [enum_account_type](#enum_account_type) |
+| `subtype` | string \| null | See [enum_account_subtype](#enum_account_subtype) |
+| `holder_category` | string \| null | `personal`, `business`, `unrecognized`. Beta field. |
+
+### `balances` object
+
+| Field | Type | Notes |
+|---|---|---|
+| `balances.available` | number \| null | Funds available to withdraw. For credit: typically `limit - current`. For depository: `current` minus pending outflows plus pending inflows. For investment: total cash available to withdraw. |
+| `balances.current` | number \| null | Total funds in or owed. Credit/loan: positive = amount owed. Investment: total asset value. |
+| `balances.limit` | number \| null | Credit limit (credit) or overdraft limit (depository, common in Europe) |
+| `balances.iso_currency_code` | string \| null | ISO-4217 code. Null if `unofficial_currency_code` is set. |
+| `balances.unofficial_currency_code` | string \| null | For crypto or non-ISO currencies. Null if `iso_currency_code` is set. |
+| `balances.last_updated_datetime` | string \| null | ISO 8601 timestamp. Only returned for Capital One (`ins_128026`). |
+| `balances.margin_loan_amount` | number \| null | Borrowed funds (margin). Investment endpoints only. |
+
+**Balance freshness:** Cached unless returned by `/accounts/balance/get` or `/signal/evaluate` (Balance-only ruleset). If `current` is null, `available` is guaranteed non-null (and vice versa for `/accounts/balance/get`).
+
+**Insight usage:** `balances.current` for net worth; `balances.available` for spending power. Always null-check `available`.
+
+### Auth-only fields
+
+Present on `/auth/get` accounts. Not mapped to datatables.
+
+| Field | Type | Notes |
+|---|---|---|
+| `verification_status` | string \| null | Micro-deposit or database verification status (e.g. `automatically_verified`, `pending_manual_verification`) |
+| `verification_name` | string \| null | Account holder name used for verification |
+| `verification_insights` | object \| null | Database Auth insights (name match score, account number format, ACH return history) |
+| `persistent_account_id` | string \| null | Stable ID across Items at TAN institutions (Chase, PNC, US Bank) |
+
+### Identity-only fields
+
+Present on `/identity/get` accounts. Not mapped to datatables.
+
+| Field | Type | Notes |
+|---|---|---|
+| `owners[]` | array | Account owner info. Each owner has `names[]`, `emails[]`, `phone_numbers[]`, `addresses[]`. Only `names` is guaranteed. |
+
+### Shared response fields
+
+Most account endpoints also return:
+
+| Field | Type | Notes |
+|---|---|---|
+| `item` | object | Item metadata: `item_id`, `institution_id`, `institution_name`, `webhook`, `error`, product lists |
+| `request_id` | string | Unique request identifier for troubleshooting |
+
+---
+
+## `/accounts/get`
+
+Retrieve a list of accounts associated with any linked Item. Returns active bank accounts only (not closed).
+
+**Product:** Accounts (free)
+**Account scope:** All active Item accounts
+**Balance freshness:** Cached — reflects last successful Item update (~daily if Transactions/Investments/Liabilities enabled)
+**Maps to:** `plaid_accounts` (alternate source)
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `options.account_ids` | string[] | no | Filter to specific accounts |
+
+### Response fields — `accounts[]`
+
+See [Shared Account object](#shared-account-object). Does not include `balances.margin_loan_amount`, Auth fields, or `owners[]`.
+
+### Response fields — other
+
+| Field | Type | Notes |
+|---|---|---|
+| `item` | object | Item metadata |
+| `request_id` | string | Request identifier |
+
+### Notes
+
+- Free to use; preferred for account list when real-time balances are not required
+- For real-time balances, use `/accounts/balance/get` instead
+- Listen for `NEW_ACCOUNTS_AVAILABLE` webhook and use Link update mode for accounts created after initial link
 
 ---
 
 ## `/accounts/balance/get`
 
-Returns real-time balance data for all accounts linked to an Item.
+Returns the real-time balance for each of an Item's accounts. Forces `available` and `current` to refresh from the institution.
 
-**`accounts[]`**
+**Product:** Balance (paid, per-call)
+**Account scope:** All active Item accounts
+**Balance freshness:** Real-time (sync call; typically <10s, occasionally up to 30s+)
+**Maps to:** `plaid_accounts` (primary source)
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `options.account_ids` | string[] | no | Filter to specific accounts |
+| `options.min_last_updated_datetime` | string | no | ISO 8601 — oldest acceptable balance timestamp |
+
+### Response fields — `accounts[]`
+
+See [Shared Account object](#shared-account-object). Does not include `balances.margin_loan_amount`, Auth fields, or `owners[]`.
+
+### Response fields — other
 
 | Field | Type | Notes |
 |---|---|---|
-| `account_id` | string | Unique account identifier |
-| `name` | string | Account name (user-assigned or institution-assigned) |
-| `official_name` | string \| null | Official name from the institution |
-| `mask` | string \| null | Last 2–4 digits of account number |
-| `type` | string | `depository`, `credit`, `investment`, `loan`, `other` |
-| `subtype` | string \| null | e.g. `checking`, `savings`, `credit card`, `mortgage`, `401k` |
-| `balances.available` | number \| null | Funds available to withdraw. Null if institution doesn't provide it. |
-| `balances.current` | number \| null | Total funds in or owed by account. For credit: amount owed. For loans: principal remaining. |
-| `balances.limit` | number \| null | Credit limit (credit accounts) or overdraft limit (depository) |
-| `balances.iso_currency_code` | string \| null | ISO-4217 currency code. Null if `unofficial_currency_code` is set. |
-| `balances.unofficial_currency_code` | string \| null | For crypto or non-ISO currencies. Null if `iso_currency_code` is set. |
-| `balances.last_updated_datetime` | string \| null | ISO 8601 timestamp. Only returned for Capital One (`ins_128026`). |
+| `item` | object | Item metadata |
+| `request_id` | string | Request identifier |
 
-**Notes:**
+### Notes
+
+- Recommended for PFM use cases requiring current balances
+- `balance` is not a Link product — use any other product to initialize Link, then call this endpoint
+- For ACH return-risk assessment, Plaid recommends `/signal/evaluate` instead (out of scope here)
 - Use `available` for spending power; use `current` for net worth calculations
-- `available` may be null — always check before using
-- Balance data from this endpoint is real-time; other endpoints may return cached balances
+
+---
+
+## `/auth/get`
+
+Retrieve bank account and routing numbers for an Item's checking, savings, and cash management accounts.
+
+**Product:** Auth
+**Account scope:** Depository accounts (checking, savings, cash management)
+**Balance freshness:** Cached when present
+**Maps to:** *(secondary — no datatable)*
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `options.account_ids` | string[] | no | Filter to specific accounts |
+
+### Response fields — `accounts[]`
+
+[Shared Account object](#shared-account-object) plus Auth-only fields (`verification_status`, `verification_name`, `verification_insights`, `persistent_account_id`).
+
+### Response fields — `numbers`
+
+| Field | Type | Notes |
+|---|---|---|
+| `numbers.ach[]` | array | US ACH: `account`, `account_id`, `routing`, `wire_routing` |
+| `numbers.eft[]` | array | Canada EFT: `account`, `account_id`, `institution`, `branch` |
+| `numbers.international[]` | array | IBAN/BIC: `account_id`, `bic`, `iban` |
+| `numbers.bacs[]` | array | UK BACS: `account`, `account_id`, `sort_code` |
+
+### Notes
+
+- Not used by current insight examples
+- `DEFAULT_UPDATE` webhook fires when Auth data changes — re-fetch affected accounts
+
+---
+
+## `/identity/get`
+
+Retrieve account holder information on file with the financial institution.
+
+**Product:** Identity
+**Account scope:** All accounts (filterable by `account_ids`)
+**Balance freshness:** N/A
+**Maps to:** *(secondary — no datatable)*
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `options.account_ids` | string[] | no | Filter to specific accounts |
+
+### Response fields — `accounts[]`
+
+[Shared Account object](#shared-account-object) plus `owners[]` (Identity-only). Each owner contains:
+
+| Field | Type | Notes |
+|---|---|---|
+| `owners[].names[]` | string[] | Owner names. Always returned. |
+| `owners[].emails[]` | object[] | `{ data, primary, type }` |
+| `owners[].phone_numbers[]` | object[] | `{ data, primary, type }` |
+| `owners[].addresses[]` | object[] | `{ data, primary }` with street, city, region, postal_code, country |
+
+### Notes
+
+- Not used by current insight examples
+- Only `names` is guaranteed; other owner fields depend on institution
 
 ---
 
 ## `/transactions/sync`
 
-Returns incremental transaction updates using a cursor. Preferred over `/transactions/get` for ongoing sync.
+Returns incremental transaction updates using a cursor. Preferred over `/transactions/get`.
 
-**`added[]` / `modified[]`** (transactions)
+**Product:** Transactions
+**Account scope:** `accounts[]` subset — only accounts with transactions in the response; investment accounts omitted
+**Balance freshness:** Cached
+**Maps to:** `plaid_transactions`
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `cursor` | string | no | Omit on first call; pass `next_cursor` on subsequent calls |
+| `count` | integer | no | Max transactions per page (default 100) |
+| `options.account_id` | string | no | Filter to one account (creates separate cursor per account) |
+| `options.include_original_description` | boolean | no | Include raw description |
+| `options.days_requested` | integer | no | Days of history (up to 730) |
+
+### Response fields — `accounts[]`
+
+Partial [Shared Account object](#shared-account-object). **Do not use as canonical account list.**
+
+### Response fields — `added[]` / `modified[]`
 
 | Field | Type | Notes |
 |---|---|---|
 | `transaction_id` | string | Unique transaction identifier |
 | `account_id` | string | Account this transaction belongs to |
 | `amount` | number | Positive = money out (expense/debit). Negative = money in (credit/refund). |
-| `date` | string | Posted date (YYYY-MM-DD). Use `authorized_date` if more precision needed. |
-| `authorized_date` | string \| null | Date transaction was authorized (may differ from posted date) |
+| `date` | string | Posted date (YYYY-MM-DD) |
+| `authorized_date` | string \| null | Date transaction was authorized |
 | `name` | string | Raw transaction name from institution |
-| `merchant_name` | string \| null | Cleaned merchant name (preferred over `name` for display) |
-| `pending` | boolean | True if transaction has not yet posted. Exclude from most analysis. |
-| `payment_channel` | string | `online`, `in store`, `other` |
-| `personal_finance_category.primary` | string | Top-level category e.g. `FOOD_AND_DRINK`, `INCOME`, `TRANSFER_IN` |
-| `personal_finance_category.detailed` | string | Sub-category e.g. `FOOD_AND_DRINK_RESTAURANTS` |
-| `personal_finance_category.confidence_level` | string | `VERY_HIGH`, `HIGH`, `MEDIUM`, `LOW`, `UNKNOWN` |
+| `merchant_name` | string \| null | Cleaned merchant name (preferred for display) |
+| `pending` | boolean | True if not yet posted. Exclude from most analysis. |
+| `payment_channel` | string | See [enum_payment_channel](#enum_payment_channel) |
+| `personal_finance_category.primary` | string | See [enum_pfc_primary](#enum_pfc_primary) |
+| `personal_finance_category.detailed` | string | See [enum_pfc_detailed](#enum_pfc_detailed) |
+| `personal_finance_category.confidence_level` | string | See [enum_pfc_confidence_level](#enum_pfc_confidence_level) |
 | `location.city` | string \| null | City where transaction occurred |
 | `location.region` | string \| null | State/region |
 | `iso_currency_code` | string \| null | ISO-4217 currency code |
 | `unofficial_currency_code` | string \| null | For non-ISO currencies |
 
-**`removed[]`**
+### Response fields — `removed[]`
 
 | Field | Type | Notes |
 |---|---|---|
 | `transaction_id` | string | ID of transaction to remove from local store |
 
-**Pagination fields**
+### Response fields — pagination
 
 | Field | Type | Notes |
 |---|---|---|
-| `next_cursor` | string | Pass in next request to get only new updates |
-| `has_more` | boolean | True if more updates are available — keep paginating |
+| `next_cursor` | string | Pass in next request |
+| `has_more` | boolean | Keep paginating until `false` |
 
-**Notes:**
-- `amount` sign convention: positive = money out (buy/expense), negative = money in (sell/dividend). Same direction as `/transactions/sync`.
+### Notes
+
+- Supports `credit`, `depository`, and some `loan` accounts (subtype `student` only)
+- For investment transactions, use `/investments/transactions/get`
 - Always paginate until `has_more = false`
-- `personal_finance_category` is the v2 taxonomy field; replaces legacy `category` array
+- `personal_finance_category` is the v2 taxonomy; replaces legacy `category` array
+
+---
+
+## `/transactions/get`
+
+Retrieve user-authorized transaction data. Legacy — prefer `/transactions/sync`.
+
+**Product:** Transactions
+**Account scope:** Same partial `accounts[]` subset as sync
+**Balance freshness:** Cached
+**Maps to:** *(secondary — prefer sync for `plaid_transactions`)*
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `start_date` | string | yes | YYYY-MM-DD |
+| `end_date` | string | yes | YYYY-MM-DD |
+| `options.account_ids` | string[] | no | Filter to specific accounts |
+| `options.count` | integer | no | Max per page (default 100, max 500) |
+| `options.offset` | integer | no | Pagination offset |
+
+### Response fields
+
+Same transaction and `accounts[]` fields as `/transactions/sync`. Also returns `total_transactions` for pagination.
+
+### Notes
+
+- All new implementations should use `/transactions/sync`
+- Transaction fields map to `plaid_transactions` identically
 
 ---
 
 ## `/investments/holdings/get`
 
-Returns current investment positions (holdings) for investment-type accounts.
+Returns current investment positions for investment-type accounts.
 
-**`holdings[]`**
+**Product:** Investments
+**Account scope:** Investment-type accounts only
+**Balance freshness:** Cached; `accounts[]` includes `balances.margin_loan_amount`
+**Maps to:** `plaid_investment_holdings`, `plaid_investment_securities`; investment `accounts[]` enriches `plaid_accounts.balances_margin_loan_amount`
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `options.account_ids` | string[] | no | Filter to specific accounts |
+
+### Response fields — `accounts[]`
+
+[Shared Account object](#shared-account-object) including `balances.margin_loan_amount`. Investment accounts only.
+
+### Response fields — `holdings[]`
 
 | Field | Type | Notes |
 |---|---|---|
 | `account_id` | string | Account holding this position |
-| `security_id` | string | Links to `securities[]` for instrument details |
-| `quantity` | number | Number of shares/units held |
-| `cost_basis` | number \| null | Average cost per share. Null if institution doesn't provide. |
-| `institution_value` | number \| null | Current market value as reported by institution |
-| `institution_price` | number \| null | Price per share as reported by institution |
-| `institution_price_as_of` | string \| null | Date of the price (YYYY-MM-DD) |
-| `iso_currency_code` | string \| null | Currency of the holding |
+| `security_id` | string | Links to `securities[]` |
+| `quantity` | number | Shares/units held |
+| `cost_basis` | number \| null | Average cost per share |
+| `institution_value` | number \| null | Current market value from institution |
+| `institution_price` | number \| null | Price per share from institution |
+| `institution_price_as_of` | string \| null | Date of price (YYYY-MM-DD) |
+| `iso_currency_code` | string \| null | Currency |
 | `unofficial_currency_code` | string \| null | For non-ISO currencies |
 
-**`securities[]`**
+### Response fields — `securities[]`
 
 | Field | Type | Notes |
 |---|---|---|
-| `security_id` | string | Unique identifier — join to `holdings[].security_id` |
-| `name` | string \| null | Full security name e.g. "Apple Inc." |
-| `ticker_symbol` | string \| null | Exchange ticker e.g. "AAPL" |
-| `type` | string | `equity`, `etf`, `mutual fund`, `fixed income`, `cash`, `derivative`, `other` |
-| `isin` | string \| null | International Securities Identification Number |
+| `security_id` | string | Join to `holdings[].security_id` |
+| `name` | string \| null | Full security name |
+| `ticker_symbol` | string \| null | Exchange ticker |
+| `type` | string | See [enum_investment_security_type](#enum_investment_security_type) |
+| `isin` | string \| null | ISIN |
 | `close_price` | number \| null | Latest closing price |
 | `close_price_as_of` | string \| null | Date of close price |
 | `iso_currency_code` | string \| null | Currency |
 
-**Notes:**
-- Join `holdings` to `securities` on `security_id` to get the full picture of a position
-- `cost_basis` is often null — don't rely on it for gain/loss calculations without a fallback
+### Notes
+
+- Join `holdings` to `securities` on `security_id`
+- `cost_basis` is often null — don't rely on it without a fallback
 - `institution_value` is the most reliable current value field
 
 ---
 
 ## `/investments/transactions/get`
 
-Returns historical investment transactions (buys, sells, dividends, fees, etc.).
+Retrieve up to 24 months of investment transaction history.
 
-**`investment_transactions[]`**
+**Product:** Investments
+**Account scope:** Investment accounts with transaction history
+**Balance freshness:** Cached; `accounts[]` includes `balances.margin_loan_amount`
+**Maps to:** `plaid_investment_transactions`
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `start_date` | string | yes | YYYY-MM-DD |
+| `end_date` | string | yes | YYYY-MM-DD |
+| `options.account_ids` | string[] | no | Filter to specific accounts |
+| `options.count` | integer | no | Max per page |
+| `options.offset` | integer | no | Pagination offset |
+
+### Response fields — `accounts[]`
+
+Investment [Shared Account object](#shared-account-object) including `balances.margin_loan_amount`. Subset of investment accounts.
+
+### Response fields — `investment_transactions[]`
 
 | Field | Type | Notes |
 |---|---|---|
@@ -375,39 +1156,57 @@ Returns historical investment transactions (buys, sells, dividends, fees, etc.).
 | `account_id` | string | Account this transaction belongs to |
 | `security_id` | string \| null | Links to `securities[]`. Null for cash transactions. |
 | `date` | string | Transaction date (YYYY-MM-DD) |
-| `name` | string | Description of the transaction |
+| `name` | string | Description |
 | `quantity` | number | Shares/units transacted |
-| `amount` | number | Total dollar value. Positive = cash out of account (buy). Negative = cash into account (sell/dividend). |
-| `price` | number | Price per share at time of transaction |
-| `fees` | number \| null | Fees/commissions charged |
-| `type` | string | `buy`, `sell`, `cash`, `transfer`, `fee`, `dividend` (high-level) |
-| `subtype` | string | More specific e.g. `dividend`, `capital gain long`, `qualified dividend`, `reinvested dividend` |
+| `amount` | number | Positive = cash out (buy). Negative = cash in (sell/dividend). |
+| `price` | number | Price per share |
+| `fees` | number \| null | Fees/commissions |
+| `type` | string | See [enum_investment_transaction_type](#enum_investment_transaction_type) |
+| `subtype` | string | See [enum_investment_transaction_subtype](#enum_investment_transaction_subtype) |
 | `iso_currency_code` | string \| null | Currency |
 | `unofficial_currency_code` | string \| null | For non-ISO currencies |
 
-**Pagination fields**
+### Response fields — pagination
 
 | Field | Type | Notes |
 |---|---|---|
 | `total_investment_transactions` | integer | Total count across all pages |
 
-**Notes:**
-- Use `type` + `subtype` together to classify transactions (e.g. `cash` + `dividend` vs `buy` + `buy`)
-- `amount` sign convention: positive = money left account (purchase), negative = money entered account (sale, dividend)
-- Pair with `securities[]` (also returned in response) for instrument details
+### Notes
+
+- Results are paginated — use `count` and `offset` with `total_investment_transactions`
+- First call after Link may take 1–2 minutes while data loads
+- Use `type` + `subtype` together to classify transactions
+- `securities[]` also returned for instrument details
 
 ---
 
 ## `/liabilities/get`
 
-Returns detailed liability data for credit and loan accounts. Supported types: credit cards, student loans, mortgages.
+Returns detailed liability data for credit and loan accounts.
 
-**`liabilities.credit[]`** (credit cards)
+**Product:** Liabilities
+**Account scope:** All Item accounts in `accounts[]`; liability detail for credit cards, student loans, mortgages
+**Balance freshness:** Cached (~daily)
+**Maps to:** `plaid_liabilities_credit`, `plaid_liabilities_student`, `plaid_liabilities_mortgage`
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `options.account_ids` | string[] | no | Filter to specific accounts |
+
+### Response fields — `accounts[]`
+
+Full [Shared Account object](#shared-account-object) for all Item accounts. Join to liability tables on `account_id`.
+
+### Response fields — `liabilities.credit[]`
 
 | Field | Type | Notes |
 |---|---|---|
 | `account_id` | string | Links to `accounts[]` |
-| `aprs[]` | array | APR details — each has `apr_percentage`, `apr_type`, `balance_subject_to_apr`, `interest_charge_amount` |
+| `aprs[]` | array | Each: `apr_percentage`, `apr_type`, `balance_subject_to_apr`, `interest_charge_amount` |
 | `is_overdue` | boolean \| null | Whether payment is overdue |
 | `last_payment_amount` | number \| null | Amount of last payment |
 | `last_payment_date` | string \| null | Date of last payment (YYYY-MM-DD) |
@@ -416,7 +1215,7 @@ Returns detailed liability data for credit and loan accounts. Supported types: c
 | `minimum_payment_amount` | number \| null | Minimum payment due |
 | `next_payment_due_date` | string \| null | Date next payment is due |
 
-**`liabilities.student[]`** (student loans)
+### Response fields — `liabilities.student[]`
 
 | Field | Type | Notes |
 |---|---|---|
@@ -430,7 +1229,7 @@ Returns detailed liability data for credit and loan accounts. Supported types: c
 | `last_payment_date` | string \| null | Date of last payment |
 | `last_statement_issue_date` | string \| null | Date of last statement |
 | `loan_name` | string \| null | Name/type of loan |
-| `loan_status.type` | string | e.g. `repayment`, `deferment`, `forbearance`, `in_school` |
+| `loan_status.type` | string | See [enum_loan_status_type](#enum_loan_status_type) |
 | `minimum_payment_amount` | number \| null | Minimum monthly payment |
 | `next_payment_due_date` | string \| null | Next due date |
 | `origination_date` | string \| null | When loan originated |
@@ -439,9 +1238,9 @@ Returns detailed liability data for credit and loan accounts. Supported types: c
 | `payment_reference_number` | string \| null | Payment reference |
 | `pslf_status.estimated_eligibility_date` | string \| null | PSLF estimated eligibility |
 | `repayment_plan.type` | string \| null | e.g. `income_driven`, `standard`, `graduated` |
-| `sequence_number` | string \| null | Loan sequence number (for servicers with multiple loans) |
+| `sequence_number` | string \| null | Loan sequence number |
 
-**`liabilities.mortgage[]`** (mortgages)
+### Response fields — `liabilities.mortgage[]`
 
 | Field | Type | Notes |
 |---|---|---|
@@ -452,7 +1251,7 @@ Returns detailed liability data for credit and loan accounts. Supported types: c
 | `has_pmi` | boolean \| null | Whether PMI is present |
 | `has_prepayment_penalty` | boolean \| null | Whether prepayment penalty applies |
 | `interest_rate.percentage` | number \| null | Interest rate |
-| `interest_rate.type` | string \| null | `fixed` or `variable` |
+| `interest_rate.type` | string \| null | See [enum_interest_rate_type](#enum_interest_rate_type) |
 | `last_payment_amount` | number \| null | Last payment amount |
 | `last_payment_date` | string \| null | Last payment date |
 | `loan_term` | string \| null | Term e.g. "30 year" |
@@ -468,7 +1267,9 @@ Returns detailed liability data for credit and loan accounts. Supported types: c
 | `ytd_interest_paid` | number \| null | Interest paid year-to-date |
 | `ytd_principal_paid` | number \| null | Principal paid year-to-date |
 
-**Notes:**
-- `accounts[]` is also returned — join on `account_id` for balance and account type info
-- Credit liability data is refreshed daily; mortgage/student loan data may lag
+### Notes
+
+- Supported types: `credit` (subtype `credit card`, `paypal`), `loan` (subtype `student`, `mortgage`)
+- Join liability tables to `plaid_accounts` on `account_id`
 - US-only coverage; limited Canadian support
+- Credit data refreshed daily; mortgage/student loan data may lag
