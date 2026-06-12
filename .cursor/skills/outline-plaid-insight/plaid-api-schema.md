@@ -6,6 +6,85 @@ Hybrid reference: **datatable mappings** for insight queries plus **API field do
 
 ---
 
+## Plaid API coverage
+
+**Linked:** Yes = endpoint response is imported into a datatable defined in this file. Insight logic uses datatables only — never calls Plaid APIs at runtime. See [Table index](#table-index) for datatable names.
+
+| Category | Endpoint | Description | Linked |
+|---|---|---|---|
+| Accounts & balance | `/accounts/get` | List all active Item accounts with cached balances | Yes |
+| Accounts & balance | `/accounts/balance/get` | Real-time account balances via live institution call | Yes |
+| Transactions | `/transactions/sync` | Incremental transaction updates via cursor (recommended) | Yes |
+| Transactions | `/transactions/get` | Paginated transaction fetch (legacy) | No |
+| Transactions | `/transactions/recurring/get` | Plaid-detected recurring streams (subscriptions, bills, income) | No |
+| Transactions | `/transactions/refresh` | Force on-demand transaction refresh | No |
+| Transactions | `/categories/get` | Full Plaid transaction category taxonomy | No |
+| Transactions | `/transactions/enrich` | Enrich merchant/category on your own transaction data | No |
+| Investments | `/investments/holdings/get` | Holdings, securities, and investment account balances | Yes |
+| Investments | `/investments/transactions/get` | Buy/sell/dividend/fee investment transactions | No |
+| Investments | `/investments/refresh` | Force on-demand investment data refresh | No |
+| Liabilities | `/liabilities/get` | Credit card, student loan, and mortgage liability details | Yes |
+| Signal & Balance | `/signal/evaluate` | Score ACH return risk for a proposed debit | No |
+| Signal & Balance | `/signal/decision/report` | Report whether a scored ACH debit was initiated | No |
+| Signal & Balance | `/signal/return/report` | Report an ACH return on a scored transaction | No |
+| Signal & Balance | `/signal/prepare` | Enable an Item for Signal Transaction Scores | No |
+| Transfer | `/transfer/authorization/create` | Pre-authorize a transfer | No |
+| Transfer | `/transfer/authorization/cancel` | Cancel a transfer authorization | No |
+| Transfer | `/transfer/create` | Initiate a transfer | No |
+| Transfer | `/transfer/cancel` | Cancel a pending transfer | No |
+| Transfer | `/transfer/get` | Get transfer details | No |
+| Transfer | `/transfer/list` | List transfers | No |
+| Transfer | `/transfer/event/list` | List transfer lifecycle events | No |
+| Transfer | `/transfer/event/sync` | Sync transfer events incrementally | No |
+| Transfer | `/transfer/sweep/get` | Get sweep (funding) details | No |
+| Transfer | `/transfer/sweep/list` | List sweeps | No |
+| Transfer | `/transfer/capabilities/get` | Check RTP eligibility for an Item | No |
+| Transfer | `/transfer/intent/create` | Create transfer intent for Transfer UI | No |
+| Transfer | `/transfer/intent/get` | Get transfer intent | No |
+| Transfer | `/transfer/migrate_account` | Create Item from known account/routing numbers | No |
+| Transfer | `/transfer/recurring/create` | Create recurring transfer | No |
+| Transfer | `/transfer/recurring/cancel` | Cancel recurring transfer | No |
+| Transfer | `/transfer/recurring/get` | Get recurring transfer | No |
+| Transfer | `/transfer/recurring/list` | List recurring transfers | No |
+| Transfer | `/transfer/refund/create` | Refund a transfer | No |
+| Transfer | `/transfer/refund/cancel` | Cancel a refund | No |
+| Transfer | `/transfer/refund/get` | Get refund details | No |
+| Transfer | `/transfer/platform/originator/create` | Onboard transfer originator (Platforms) | No |
+| Transfer | `/transfer/platform/person/create` | Create beneficial owner or control person | No |
+| Transfer | `/transfer/platform/requirement/submit` | Submit onboarding requirements | No |
+| Transfer | `/transfer/platform/document/submit` | Submit onboarding documents | No |
+| Transfer | `/transfer/originator/get` | Get originator onboarding status | No |
+| Transfer | `/transfer/originator/list` | List originator statuses | No |
+| Transfer | `/transfer/originator/funding_account/create` | Add originator funding account | No |
+| Transfer | `/transfer/ledger/deposit` | Deposit into Plaid ledger | No |
+| Transfer | `/transfer/ledger/distribute` | Move balance between platform and originator | No |
+| Transfer | `/transfer/ledger/get` | Get ledger balance | No |
+| Transfer | `/transfer/ledger/withdraw` | Withdraw from ledger | No |
+| Transfer | `/transfer/ledger/event/list` | List ledger events | No |
+| Transfer | `/transfer/metrics/get` | Transfer product usage metrics | No |
+| Transfer | `/transfer/configuration/get` | Transfer product configuration | No |
+| Payment Initiation | `/payment_initiation/recipient/create` | Create payment recipient | No |
+| Payment Initiation | `/payment_initiation/recipient/get` | Get payment recipient | No |
+| Payment Initiation | `/payment_initiation/recipient/list` | List payment recipients | No |
+| Payment Initiation | `/payment_initiation/payment/create` | Create payment or standing order | No |
+| Payment Initiation | `/payment_initiation/payment/get` | Get payment status | No |
+| Payment Initiation | `/payment_initiation/payment/list` | List payments | No |
+| Payment Initiation | `/payment_initiation/payment/reverse` | Refund from virtual account | No |
+| Payment Initiation | `/payment_initiation/consent/create` | Create payment consent | No |
+| Payment Initiation | `/payment_initiation/consent/get` | Get payment consent | No |
+| Payment Initiation | `/payment_initiation/consent/revoke` | Revoke payment consent | No |
+| Payment Initiation | `/payment_initiation/consent/payment/execute` | Execute payment using consent | No |
+| Payment Initiation | `/wallet/create` | Create Plaid virtual account | No |
+| Payment Initiation | `/wallet/get` | Get virtual account | No |
+| Payment Initiation | `/wallet/list` | List virtual accounts | No |
+| Payment Initiation | `/wallet/transaction/execute` | Execute wallet transaction | No |
+| Payment Initiation | `/wallet/transaction/get` | Get wallet transaction | No |
+| Payment Initiation | `/wallet/transaction/list` | List wallet transactions | No |
+
+`/accounts/balance/get` is listed under Accounts & balance only; Plaid also documents it under Signal & Balance.
+
+---
+
 ## Account APIs overview
 
 Plaid uses a shared **Account object** across endpoints. There is no single "get everything" endpoint — account metadata, balances, and enrichment come from different products.
@@ -22,7 +101,6 @@ Plaid uses a shared **Account object** across endpoints. There is no single "get
 | `/identity/get` | [Identity API](https://plaid.com/docs/api/products/identity/) | Filterable by `account_ids` | N/A | `owners[]` (names, emails, phones, addresses) | *(secondary — no datatable)* |
 | `/transactions/sync` | [Transactions API](https://plaid.com/docs/api/products/transactions/) | Subset: accounts with transactions in response | Cached | Standard Account object | `plaid_transactions` only; **not** canonical account list |
 | `/transactions/get` | [Transactions API](https://plaid.com/docs/api/products/transactions/) | Same subset as sync | Cached | Standard Account object | *(secondary — prefer sync)* |
-| `/investments/transactions/get` | [Investments API](https://plaid.com/docs/api/products/investments/) | Investment accounts with transaction history | Cached + `margin_loan_amount` | Account object for investment accounts | `plaid_investment_transactions` |
 
 **Out of scope:** `/signal/evaluate`, `/processor/*` variants.
 
@@ -54,14 +132,15 @@ For tables that accumulate history across syncs, keep one row per entity **per s
 
 ### Table index
 
+See [Plaid API coverage](#plaid-api-coverage) for the full product-area endpoint list and linked status.
+
 | Endpoint | Table(s) |
 |---|---|
 | `/accounts/balance/get` (primary), `/accounts/get` (alternate) | `plaid_accounts` |
 | `/transactions/sync` | `plaid_transactions` |
 | `/investments/holdings/get` | `plaid_investment_holdings`, `plaid_investment_securities` |
-| `/investments/transactions/get` | `plaid_investment_transactions` |
 | `/liabilities/get` | `plaid_liabilities_credit`, `plaid_liabilities_student`, `plaid_liabilities_mortgage` |
-| *(extension)* | `security_asset_allocation`, `plaid_items` |
+| *(extension)* | `plaid_items` |
 
 ---
 
@@ -80,19 +159,6 @@ Source: Plaid Item metadata at link time (e.g. from `/link/token/create` callbac
 | `institution_id` | string \| null | Optional Plaid institution ID (e.g. `ins_3`) |
 
 Used by [investment accounts by institution](examples/investment-account/investment-accounts-by-institution.md) to group accounts under institution labels. `item_id` alone is on every datatable row; institution names are not.
-
-### `security_asset_allocation`
-
-Source: external fund-composition data (not a Plaid endpoint). One or more rows per security.
-
-| Column | Type | Notes |
-|---|---|---|
-| `security_id` | string | Join to `plaid_investment_securities.security_id` |
-| `asset_class` | string | See [enum_asset_class](#enum_asset_class) |
-| `weight` | number | Share of security market value in this class (0–1) |
-| `as_of` | date \| null | Optional composition freshness |
-
-**Constraints:** For each `security_id`, weights must sum to `1.0` (±0.001). Used by [asset allocation](examples/investment-account/asset-allocation.md) to decompose ETFs and mutual funds.
 
 ---
 
@@ -177,35 +243,13 @@ Source: `/investments/holdings/get` → `securities[]`. One row per security per
 | `security_id` | string | `security_id` |
 | `name` | string \| null | `name` |
 | `ticker_symbol` | string \| null | `ticker_symbol` |
-| `type` | string | See [enum_investment_security_type](#enum_investment_security_type) |
+| `type` | string | Summary security type — see [enum_investment_security_type](#enum_investment_security_type) |
 | `isin` | string \| null | `isin` |
 | `close_price` | number \| null | `close_price` |
 | `close_price_as_of` | date \| null | `close_price_as_of` |
 | `iso_currency_code` | string \| null | `iso_currency_code` |
 
 Join to `plaid_investment_holdings` on `security_id` + matching `synced_at`.
-
----
-
-### `plaid_investment_transactions`
-
-Source: `/investments/transactions/get` → `investment_transactions[]`. One row per transaction (upsert on `investment_transaction_id`).
-
-| Column | Type | Source field |
-|---|---|---|
-| `investment_transaction_id` | string | `investment_transaction_id` |
-| `account_id` | string | `account_id` |
-| `security_id` | string \| null | `security_id` |
-| `date` | date | `date` |
-| `name` | string | `name` |
-| `quantity` | number | `quantity` |
-| `amount` | number | `amount` |
-| `price` | number | `price` |
-| `fees` | number \| null | `fees` |
-| `type` | string | See [enum_investment_transaction_type](#enum_investment_transaction_type) |
-| `subtype` | string | See [enum_investment_transaction_subtype](#enum_investment_transaction_subtype) |
-| `iso_currency_code` | string \| null | `iso_currency_code` |
-| `unofficial_currency_code` | string \| null | `unofficial_currency_code` |
 
 ---
 
@@ -285,11 +329,8 @@ Lookup tables for enum-like datatable columns. One row per allowed value.
 | `plaid_transactions.personal_finance_category_detailed` | [enum_pfc_detailed](#enum_pfc_detailed) |
 | `plaid_transactions.personal_finance_category_confidence_level` | [enum_pfc_confidence_level](#enum_pfc_confidence_level) |
 | `plaid_investment_securities.type` | [enum_investment_security_type](#enum_investment_security_type) |
-| `plaid_investment_transactions.type` | [enum_investment_transaction_type](#enum_investment_transaction_type) |
-| `plaid_investment_transactions.subtype` | [enum_investment_transaction_subtype](#enum_investment_transaction_subtype) |
 | `plaid_liabilities_student.loan_status_type` | [enum_loan_status_type](#enum_loan_status_type) |
 | `plaid_liabilities_mortgage.interest_rate_type` | [enum_interest_rate_type](#enum_interest_rate_type) |
-| `security_asset_allocation.asset_class` | [enum_asset_class](#enum_asset_class) |
 
 ---
 
@@ -576,133 +617,29 @@ Source: [Plaid PFCv1 taxonomy CSV](https://plaid.com/documents/transactions-pers
 
 ### enum_investment_security_type
 
-`plaid_investment_securities.type` — security instrument type.
+`plaid_investment_securities.type` — Plaid summary security type (`securities[].type`). These 9 values are what the datatable normally stores. `securities[].subtype` is granular classification (not in the datatable today); use the Subtypes column to normalize raw values. These types are also the allocation output buckets for [asset allocation](examples/investment-account/asset-allocation.md) and [investment account detail](examples/investment-account/investment-account-detail.md).
 
-**Holdings summary types** (common in `plaid_investment_securities`):
-
-| Value | Description |
-| --- | --- |
-| `equity` | Equity / common stock |
-| `etf` | Exchange-traded fund |
-| `mutual fund` | Mutual fund |
-| `fixed income` | Bonds and fixed income |
-| `cash` | Cash and cash equivalents |
-| `derivative` | Options and derivatives |
-| `other` | Other security type |
-
-**Full Plaid API enum** (may also appear in `securities[].type`):
-
-| Value | Description |
-| --- | --- |
-| `asset backed security` |  |
-| `bill` |  |
-| `bond` |  |
-| `bond with warrants` |  |
-| `cash` |  |
-| `cash management bill` |  |
-| `common stock` |  |
-| `convertible bond` |  |
-| `convertible equity` |  |
-| `cryptocurrency` |  |
-| `depositary receipt` |  |
-| `depositary receipt on debt` |  |
-| `etf` |  |
-| `float rating note` |  |
-| `fund of funds` |  |
-| `hedge fund` |  |
-| `limited partnership unit` |  |
-| `medium term note` |  |
-| `money market debt` |  |
-| `mortgage backed security` |  |
-| `municipal bond` |  |
-| `mutual fund` |  |
-| `note` |  |
-| `option` |  |
-| `other` |  |
-| `preferred convertible` |  |
-| `preferred equity` |  |
-| `private equity fund` |  |
-| `real estate investment trust` |  |
-| `structured equity product` |  |
-| `treasury inflation protected securities` |  |
-| `unit` |  |
-| `warrant` |  |
+| Type | Description | Subtypes |
+| --- | --- | --- |
+| `cash` | Cash, currency, and money market funds | `cash`, `cash management bill`, `money market debt` |
+| `cryptocurrency` | Digital or virtual currencies | `cryptocurrency` |
+| `derivative` | Options, warrants, and other derivative instruments | `derivative`, `option`, `warrant` |
+| `equity` | Domestic and foreign equities | `equity`, `common stock`, `depositary receipt`, `preferred equity`, `convertible equity`, `structured equity product`, `unit`, `real estate investment trust`, `limited partnership unit` |
+| `etf` | Multi-asset exchange-traded investment funds | `etf` |
+| `fixed income` | Bonds and certificates of deposit | `fixed income`, `bond`, `municipal bond`, `convertible bond`, `mortgage backed security`, `treasury inflation protected securities`, `bill`, `note`, `medium term note`, `float rating note`, `asset backed security`, `bond with warrants`, `depositary receipt on debt`, `preferred convertible` |
+| `loan` | Loans and loan receivables | `loan` |
+| `mutual fund` | Open- and closed-end pooled vehicles | `mutual fund`, `fund of funds` |
+| `other` | Unknown or other investment types | `other`, `hedge fund`, `private equity fund`, null/unknown |
 
 Source: [Plaid Investments API](https://plaid.com/docs/api/products/investments/)
 
----
+**Normalization rule:**
 
-### enum_investment_transaction_type
+1. If `type` is already one of the 9 values above, use it as-is.
+2. Else if `subtype` is present, map via the Subtypes column.
+3. Else → `other`.
 
-`plaid_investment_transactions.type` — high-level investment transaction type.
-
-| Value | Description |
-| --- | --- |
-| `buy` | Purchase of securities |
-| `sell` | Sale of securities |
-| `cancel` | Cancelled transaction |
-| `cash` | Cash movement (dividend, interest, etc.) |
-| `fee` | Fee or commission |
-| `transfer` | Transfer between accounts |
-
----
-
-### enum_investment_transaction_subtype
-
-`plaid_investment_transactions.subtype` — granular investment transaction classification. Use with `type` for full context.
-
-| Value | Description |
-| --- | --- |
-| `account fee` |  |
-| `adjustment` |  |
-| `assignment` |  |
-| `buy` |  |
-| `buy to cover` |  |
-| `contribution` |  |
-| `deposit` |  |
-| `distribution` |  |
-| `dividend` |  |
-| `dividend reinvestment` |  |
-| `exercise` |  |
-| `expire` |  |
-| `fund fee` |  |
-| `interest` |  |
-| `interest receivable` |  |
-| `interest reinvestment` |  |
-| `legal fee` |  |
-| `loan payment` |  |
-| `long-term capital gain` |  |
-| `long-term capital gain reinvestment` |  |
-| `management fee` |  |
-| `margin expense` |  |
-| `merger` |  |
-| `miscellaneous fee` |  |
-| `non-qualified dividend` |  |
-| `non-resident tax` |  |
-| `pending credit` |  |
-| `pending debit` |  |
-| `qualified dividend` |  |
-| `rebalance` |  |
-| `return of principal` |  |
-| `request` |  |
-| `sell` |  |
-| `sell short` |  |
-| `send` |  |
-| `short-term capital gain` |  |
-| `short-term capital gain reinvestment` |  |
-| `spin off` |  |
-| `split` |  |
-| `stock distribution` |  |
-| `tax` |  |
-| `tax withheld` |  |
-| `trade` |  |
-| `transfer` |  |
-| `transfer fee` |  |
-| `trust fee` |  |
-| `unqualified gain` |  |
-| `withdrawal` |  |
-
-Source: [Plaid Investments API](https://plaid.com/docs/api/products/investments/)
+Each holding is assigned 100% of `institution_value` to one type bucket. Instrument type reflects Plaid classification, not underlying fund composition (e.g. a bond ETF with `type = etf` counts as `etf`).
 
 ---
 
@@ -744,20 +681,6 @@ Source: [Plaid Liabilities API](https://plaid.com/docs/api/products/liabilities/
 | --- | --- |
 | `fixed` | Fixed interest rate |
 | `variable` | Variable interest rate |
-
----
-
-### enum_asset_class
-
-`security_asset_allocation.asset_class` — fund composition class (extension table, project-defined).
-
-| Value | Description |
-| --- | --- |
-| `equity` | Equity holdings |
-| `bonds` | Fixed income / bonds |
-| `cash` | Cash and equivalents |
-| `crypto` | Cryptocurrency |
-| `international_equity` | International equity |
 
 ---
 
@@ -1032,7 +955,7 @@ Partial [Shared Account object](#shared-account-object). **Do not use as canonic
 ### Notes
 
 - Supports `credit`, `depository`, and some `loan` accounts (subtype `student` only)
-- For investment transactions, use `/investments/transactions/get`
+- Investment transactions are not imported — no datatable in the current schema
 - Always paginate until `has_more = false`
 - `personal_finance_category` is the v2 taxonomy; replaces legacy `category` array
 
@@ -1110,7 +1033,8 @@ Returns current investment positions for investment-type accounts.
 | `security_id` | string | Join to `holdings[].security_id` |
 | `name` | string \| null | Full security name |
 | `ticker_symbol` | string \| null | Exchange ticker |
-| `type` | string | See [enum_investment_security_type](#enum_investment_security_type) |
+| `type` | string | Summary security type — see [enum_investment_security_type](#enum_investment_security_type) |
+| `subtype` | string \| null | Granular security classification — see [enum_investment_security_type](#enum_investment_security_type) |
 | `isin` | string \| null | ISIN |
 | `close_price` | number \| null | Latest closing price |
 | `close_price_as_of` | string \| null | Date of close price |
@@ -1121,63 +1045,6 @@ Returns current investment positions for investment-type accounts.
 - Join `holdings` to `securities` on `security_id`
 - `cost_basis` is often null — don't rely on it without a fallback
 - `institution_value` is the most reliable current value field
-
----
-
-## `/investments/transactions/get`
-
-Retrieve up to 24 months of investment transaction history.
-
-**Product:** Investments
-**Account scope:** Investment accounts with transaction history
-**Balance freshness:** Cached; `accounts[]` includes `balances.margin_loan_amount`
-**Maps to:** `plaid_investment_transactions`
-
-### Request fields
-
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `access_token` | string | yes | Item access token |
-| `start_date` | string | yes | YYYY-MM-DD |
-| `end_date` | string | yes | YYYY-MM-DD |
-| `options.account_ids` | string[] | no | Filter to specific accounts |
-| `options.count` | integer | no | Max per page |
-| `options.offset` | integer | no | Pagination offset |
-
-### Response fields — `accounts[]`
-
-Investment [Shared Account object](#shared-account-object) including `balances.margin_loan_amount`. Subset of investment accounts.
-
-### Response fields — `investment_transactions[]`
-
-| Field | Type | Notes |
-|---|---|---|
-| `investment_transaction_id` | string | Unique transaction identifier |
-| `account_id` | string | Account this transaction belongs to |
-| `security_id` | string \| null | Links to `securities[]`. Null for cash transactions. |
-| `date` | string | Transaction date (YYYY-MM-DD) |
-| `name` | string | Description |
-| `quantity` | number | Shares/units transacted |
-| `amount` | number | Positive = cash out (buy). Negative = cash in (sell/dividend). |
-| `price` | number | Price per share |
-| `fees` | number \| null | Fees/commissions |
-| `type` | string | See [enum_investment_transaction_type](#enum_investment_transaction_type) |
-| `subtype` | string | See [enum_investment_transaction_subtype](#enum_investment_transaction_subtype) |
-| `iso_currency_code` | string \| null | Currency |
-| `unofficial_currency_code` | string \| null | For non-ISO currencies |
-
-### Response fields — pagination
-
-| Field | Type | Notes |
-|---|---|---|
-| `total_investment_transactions` | integer | Total count across all pages |
-
-### Notes
-
-- Results are paginated — use `count` and `offset` with `total_investment_transactions`
-- First call after Link may take 1–2 minutes while data loads
-- Use `type` + `subtype` together to classify transactions
-- `securities[]` also returned for instrument details
 
 ---
 

@@ -29,7 +29,7 @@ Used only for investment account balance fallback when `balances_current` IS NUL
 |---|---|
 | `timeframe` | `trailing_1m`, `trailing_3m`, `ytd`, `trailing_1y`, `all_time` — passed to net worth balance chart |
 
-**UI tab mapping:** `1M` → `trailing_1m`; `3M` → `trailing_3m`; `YTD` → `ytd`; `1Y` → `trailing_1y`; `All` → `all_time`.
+**Timeframe aliases:** `1M` → `trailing_1m`; `3M` → `trailing_3m`; `YTD` → `ytd`; `1Y` → `trailing_1y`; `All` → `all_time`.
 
 ### Calculation / analysis
 
@@ -52,7 +52,3 @@ Used only for investment account balance fallback when `balances_current` IS NUL
 | `snapshot` | object | Full [net worth snapshot](net-worth-snapshot.md) payload |
 | `bar` | object | Full [assets / liabilities bar](assets-liabilities-bar.md) payload (`segments`, `total_assets`, `total_liabilities`, `net_worth`, `bar_total`, `as_of`) |
 | `accounts[]` | array | Enriched leaves: `{ account_id, name, mask, institution_name, balance, group, synced_at }` |
-
-### UI output
-
-**Pattern:** [Overview dashboard](../../ui-output-options.md#overview-dashboard--composite) — chart hero + nested account list + assets/liabilities bar.

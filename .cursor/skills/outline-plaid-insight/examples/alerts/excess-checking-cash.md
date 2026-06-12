@@ -13,7 +13,7 @@ Flags when the user's combined **checking** balance exceeds a recommended cushio
 | `user_id` | User scope |
 | `account_id` | Checking account identifier |
 | `name` | Display name |
-| `mask` | Optional last digits for UI |
+| `mask` | Optional last digits for account label |
 | `type` | Must be `depository` |
 | `subtype` | Must be `checking` (case-insensitive match on `LOWER(subtype)`) |
 | `balances_current` | Balance for excess comparison (per schema: use `current`, not `balances_available`) |
@@ -54,7 +54,7 @@ Flags when the user's combined **checking** balance exceeds a recommended cushio
    - `total_checking_balance` = sum of `balance` (derive from detail rows only)
 2. **Spend window**
    - `spend_window_end` = today
-   - `spend_window_start` = today − 3 calendar months (same rolling style as [recurring spending](../cash-flow/recurring-spending.md) 6-month window)
+   - `spend_window_start` = today − 3 calendar months (same rolling style as [recurring transactions](../cash-flow/recurring-transactions.md) display window)
 3. **Spend scope**
    - Depository + credit `account_id` values from latest accounts where `type` in (`depository`, `credit`)
 4. **Eligible spend**
@@ -95,10 +95,6 @@ Flags when the user's combined **checking** balance exceeds a recommended cushio
 | `spend_window_end` | date | End of spend window |
 | `checking_accounts` | array | `{ account_id, name, mask, balance }` sorted by `balance` descending |
 | `as_of` | timestamp | Latest checking sync used |
-
-### UI output
-
-**Pattern:** [Excess checking cash — insight card](../../ui-output-options.md#excess-checking-cash--insight-card)
 
 ### Notes
 

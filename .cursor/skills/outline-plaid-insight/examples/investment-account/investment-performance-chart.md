@@ -76,7 +76,3 @@ Shows combined investment account value as a daily time series for a selected ti
 | `period_return_amount` | number | `end_value - start_value` |
 | `period_return_pct` | number | Fraction (e.g. `0.035` = 3.5%); omit if `start_value` ≤ 0 |
 | `as_of` | date | Same as `window_end` |
-
-### UI output
-
-**Pattern:** [Line chart](../../ui-output-options.md#investment-performance-chart--line-chart) — `date` on X-axis, `total_value` on Y-axis; Y-axis domain `[total_value_min, total_value_max]`; subtitle shows `period_return_amount` and `period_return_pct`. **`end_value` is the portfolio headline total** when paired with [investment accounts by institution](investment-accounts-by-institution.md) (that list omits a root total).

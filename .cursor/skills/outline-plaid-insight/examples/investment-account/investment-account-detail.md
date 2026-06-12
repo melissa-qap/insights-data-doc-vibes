@@ -2,7 +2,7 @@
 
 ### Description
 
-Single investment account: performance chart, info block, simplified holdings allocation (Stocks / Crypto / Cash), and recent investment activities.
+Single investment account: performance chart, info block, simplified holdings allocation by Plaid security type (9 buckets), and recent investment activities.
 
 ### Required input data
 
@@ -24,11 +24,7 @@ Single investment account: performance chart, info block, simplified holdings al
 
 Same join as [asset allocation](asset-allocation.md), filtered to one `account_id`.
 
-#### `plaid_investment_transactions`
-
-| Column | Description |
-|---|---|
-| `investment_transaction_id`, `account_id`, `date`, `name`, `amount`, `type`, `subtype`, `security_id` | Activity rows |
+**Not available — API not linked.** `/investments/transactions/get` is not imported; omit `activities[]` from output (return empty array) until the endpoint is linked.
 
 **Parameters:**
 
@@ -41,15 +37,13 @@ Same join as [asset allocation](asset-allocation.md), filtered to one `account_i
 
 1. **Performance chart** — adapt [investment performance chart](investment-performance-chart.md): filter all steps to single `account_id`; daily `total_value = balances_current` point-in-time
 2. **Header** — same shape as [cash account detail](../net-worth/cash-account-detail.md)
-3. **Available balance** — `balances_available`; if null, sum holdings where security `type = cash`
-4. **Account owner** — **Not available in current Plaid schema.** Omit from UI.
-5. **Holdings buckets** — at latest holdings `synced_at`, classify each holding's `institution_value` V:
-   - **Stocks:** `type` in (`equity`, `etf`, `mutual fund`, `fixed income`, `derivative`, `other`) — full V unless enrichment splits an ETF (use [asset allocation](asset-allocation.md) equity/bonds weights rolled into Stocks)
-   - **Crypto:** `holdings.unofficial_currency_code IS NOT NULL`, or enrichment `asset_class = crypto`
-   - **Cash:** security `type = cash`
-   - Unclassified fund value (no enrichment): add to **Stocks**
-6. **Bucket totals** — `stocks_value`, `crypto_value`, `cash_value`; `account_total` = sum of buckets; each `percent = value / account_total`
-7. **Activities** — filter `account_id`; sort `date` desc; cap at `activity_limit`
+3. **Available balance** — `balances_available`; if null, sum holdings where normalized security type = `cash` per [enum_investment_security_type](../../plaid-api-schema.md#enum_investment_security_type)
+4. **Account owner** — **Not available in current Plaid schema.** Omit from output.
+5. **Holdings buckets** — at latest holdings `synced_at`, classify each holding's `institution_value` V using the same normalization as [asset allocation](asset-allocation.md):
+   - One of 9 Plaid security types — see [enum_investment_security_type](../../plaid-api-schema.md#enum_investment_security_type)
+   - Omit buckets with zero value from output
+6. **Bucket totals** — one entry per non-zero bucket: `{ bucket, value, percent }`; `account_total` = sum of bucket values; each `percent = value / account_total`
+7. **Activities** — **blocked** (API not linked). When `/investments/transactions/get` is linked: filter `account_id`; sort `date` desc; cap at `activity_limit`. Until then, return `activities = []`.
 
 ### Data output
 
@@ -58,9 +52,5 @@ Same join as [asset allocation](asset-allocation.md), filtered to one `account_i
 | `chart` | object | Per-account performance chart payload (`points`, `period_return_*`, window fields) |
 | `title`, `institution_name`, `synced_at`, `subtype` | — | Header / info |
 | `balances_available` | number \| null | Or cash-holdings fallback |
-| `holdings_buckets[]` | array | `{ bucket: stocks\|crypto\|cash, value, percent }` |
-| `activities[]` | array | `{ investment_transaction_id, name, date, amount, type, subtype }` |
-
-### UI output
-
-**Pattern:** [Investment account detail — composite](../../ui-output-options.md#investment-account-detail--composite) — line chart + segmented allocation bar + activity flat table.
+| `holdings_buckets[]` | array | `{ bucket, value, percent }` — one of 9 Plaid security types; non-zero buckets only |
+| `activities[]` | array | `{ investment_transaction_id, name, date, amount, type, subtype }` — empty when API not linked |

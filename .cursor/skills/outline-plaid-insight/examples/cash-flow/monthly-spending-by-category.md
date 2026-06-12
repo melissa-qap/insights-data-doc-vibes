@@ -55,7 +55,3 @@ Uses [cash flow core](cash-flow-core.md) transaction table.
 | `month` | string | Current calendar month (`YYYY-MM`); same on every row |
 | `rows` | array | Flat list: `{ month, category, amount }` — one row per primary category; sorted by `amount` descending |
 | `as_of` | date | First calendar day of `month` (e.g. `2026-05-01` for May 2026) |
-
-### UI output
-
-**Pattern:** [Flat table](../../ui-output-options.md#monthly-spending-by-category--flat-table) — columns `Category`, `Amount`; rows ordered highest to lowest amount; subtitle shows current month via `as_of` / `month`.

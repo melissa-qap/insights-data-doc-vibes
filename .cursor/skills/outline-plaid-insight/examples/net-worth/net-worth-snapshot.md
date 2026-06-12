@@ -35,9 +35,9 @@ Equivalent to [net worth core](net-worth-core.md) Layer 1 with cutoff = `MAX(syn
 
 | Field | Type | Description |
 |---|---|---|
-| `net_worth` | number | Total assets minus total liabilities — not shown in nested list UI; use chart `points[last].net_worth` or this value for the headline when paired |
-| `total_assets` | number | `cash_balance` + `investment_balance` — for calculation/validation; not shown in nested list UI |
-| `total_liabilities` | number | `credit_cards_balance` + `loans_balance` — for calculation/validation; not shown in nested list UI |
+| `net_worth` | number | Total assets minus total liabilities — pair with [net worth balance chart](net-worth-balance-chart.md) `points[last].net_worth` for the headline total |
+| `total_assets` | number | `cash_balance` + `investment_balance` — for calculation/validation |
+| `total_liabilities` | number | `credit_cards_balance` + `loans_balance` — for calculation/validation |
 | `cash_balance` | number | Sum of cash-group account balances (derived from accounts) |
 | `investment_balance` | number | Sum of investment-group account balances (derived from accounts) |
 | `credit_cards_balance` | number | Sum of credit-card-group account balances (derived from accounts) |
@@ -45,7 +45,3 @@ Equivalent to [net worth core](net-worth-core.md) Layer 1 with cutoff = `MAX(syn
 | `as_of` | timestamp | Portfolio freshness — `MAX(synced_at)` across resolved accounts; may be newer than some per-account sync times |
 | `asset_groups` | array | `{ group, label, total_balance, accounts[] }` — `cash`, `investment`; `total_balance` matches `cash_balance` / `investment_balance`; `accounts[]` = `{ account_id, name, type, subtype, balance, synced_at, role, group }` |
 | `liability_groups` | array | `{ group, label, total_balance, accounts[] }` — `credit_cards`, `loans`; `total_balance` matches `credit_cards_balance` / `loans_balance`; same account shape |
-
-### UI output
-
-**Pattern:** [Nested list](../../ui-output-options.md#net-worth--nested-list) — Assets / Liabilities (headers only) → Cash / Investment or Credit cards / Loans (balance) → individual accounts (balance). Pair with [net worth balance chart](net-worth-balance-chart.md) for the net worth headline (`points[last].net_worth`); do not render `net_worth` on this list.

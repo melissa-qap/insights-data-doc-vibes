@@ -49,7 +49,3 @@ Uses [net worth core](net-worth-core.md) with latest-only data access; `include_
 | `as_of` | timestamp | `MAX(synced_at)` across resolved accounts |
 
 **Empty state:** when `bar_total = 0` (no linked accounts or all null balances), return `segments = []` and omit bar.
-
-### UI output
-
-**Pattern:** [Assets / liabilities bar — stacked bar](../../ui-output-options.md#assets--liabilities-bar--stacked-bar)

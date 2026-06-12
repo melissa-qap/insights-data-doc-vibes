@@ -145,7 +145,7 @@ ORDER BY account_id, synced_at DESC
 | Chart (per day) | `end_of_day(D)` | `false` | `net_worth` only → `{ date, net_worth }` |
 | Assets / liabilities bar | `MAX(synced_at)` or `window_end` | `false` | `total_assets`, `total_liabilities`, `net_worth` → `segments[]` |
 
-**Invariant (paired UI):** snapshot `net_worth` at latest sync must equal chart `points[last].net_worth` when both use the same `window_end`.
+**Paired insight invariant:** snapshot `net_worth` at latest sync must equal chart `points[last].net_worth` when both use the same `window_end`.
 
 ### Implementation notes
 

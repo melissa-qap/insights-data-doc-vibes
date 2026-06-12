@@ -2,7 +2,7 @@
 
 ### Description
 
-Shows monthly money coming in vs going out over the trailing 24 months on linked depository and credit accounts, with a net cash flow line so users can see whether they ran a surplus or deficit each month. The UI displays six months at a time in a scrollable viewport.
+Shows monthly money coming in vs going out over the trailing 24 months on linked depository and credit accounts, with net cash flow per month so users can see whether they ran a surplus or deficit each month.
 
 Uses [cash flow core](cash-flow-core.md) transaction table.
 
@@ -38,12 +38,14 @@ Uses [cash flow core](cash-flow-core.md) transaction table.
 6. **Per month**
    - Derive `month` as `YYYY-MM` from `date`
    - For each month:
+     - `window_start` = first calendar day of `month`
+     - `window_end` = last calendar day of `month`; when `month` is the same calendar month as top-level `window_end`, use top-level `window_end` instead (partial latest month)
      - `cash_inflow` = sum of `ABS(amount)` where `amount < 0` (positive magnitude for upward bar)
      - `cash_outflow` = −sum of `amount` where `amount > 0` (negative magnitude for downward bar)
      - `net_cash_flow` = `cash_inflow + cash_outflow` (derived from bar values; equals −sum of `amount` for the month)
 7. **Build `months`**
-   - One object per month in the window: `{ month, cash_inflow, cash_outflow, net_cash_flow }`
-   - Include months with zero activity (all fields `0`)
+   - One object per month in the window: `{ month, window_start, window_end, cash_inflow, cash_outflow, net_cash_flow }`
+   - Include months with zero activity (all cash fields `0`; still set `window_start` / `window_end` from `month`)
    - Sort ascending by `month`
 8. **Derive chart bounds from `months`**
    - Do not compute independently
@@ -59,11 +61,7 @@ Uses [cash flow core](cash-flow-core.md) transaction table.
 | `timeframe` | string | `"trailing_24m"` |
 | `window_start` | date | First day of earliest month in series |
 | `window_end` | date | Last day of latest month in series |
-| `months` | array | Chart series: up to 24 `{ month, cash_inflow, cash_outflow, net_cash_flow }`, sorted ascending by `month` |
-| `value_min` | number | Y-axis floor — derived from all `months` (stable while UI scrolls) |
-| `value_max` | number | Y-axis ceiling — derived from all `months` (stable while UI scrolls) |
+| `months` | array | Chart series: up to 24 `{ month, window_start, window_end, cash_inflow, cash_outflow, net_cash_flow }`, sorted ascending by `month` |
+| `value_min` | number | Scale floor — derived from all `months` (stable across viewport slices) |
+| `value_max` | number | Scale ceiling — derived from all `months` (stable across viewport slices) |
 | `as_of` | date | Same as `window_end` |
-
-### UI output
-
-**Pattern:** [Combo line and bar chart](../../ui-output-options.md#cash-inflow-outflow-chart--combo-line-and-bar-chart) — 6-bar viewport over `months[]`; left/right arrows shift by one month; header from rightmost visible month's `net_cash_flow`; Y-axis domain `[value_min, value_max]` from full payload.

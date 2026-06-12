@@ -9,7 +9,7 @@ description: >-
 
 # Outline Plaid Insight Data Spec
 
-Produce a concise data spec for a financial insight: required Plaid tables/columns, calculation steps, data output fields, and UI presentation.
+Produce a concise data spec for a financial insight: required Plaid tables/columns, calculation steps, and data output fields.
 
 ## Resources
 
@@ -18,7 +18,6 @@ Produce a concise data spec for a financial insight: required Plaid tables/colum
 | [plaid-api-schema.md](plaid-api-schema.md) | Hybrid datatable + Plaid API spec reference (Account APIs overview, endpoint fields) — read before drafting |
 | [insight-types.md](insight-types.md) | Taxonomy of insight patterns (snapshot, chart, recurring, top N, etc.) |
 | [examples/](examples/README.md) | One `.md` per finalized insight — add every new insight here |
-| [ui-output-options.md](ui-output-options.md) | UI output types (nested list, flat table, line chart, etc.) — grouped by type |
 
 ## Workflow
 
@@ -45,7 +44,6 @@ Ask only what is ambiguous:
 | **Amount handling** | Outflows only, net refunds, gross | `amount` sign rules |
 | **Ranking / limits** | Top 5, top 10, none | Sort, row cap |
 | **Comparison** | vs prior month/year, none | Extra date windows |
-| **UI pattern** | Nested list, flat table | Link or add [ui-output-options.md](ui-output-options.md) |
 | **Null / missing data** | Exclude, fallback, zero | Filter rules |
 
 **Defaults** (only if user declines to specify): latest snapshot for balances; current calendar month for spending; exclude `pending = true` and `removed = true`; primary category for spend grouping.
@@ -83,10 +81,6 @@ Ask only what is ambiguous:
 | Field | Type | Description |
 |---|---|---|
 | `field` | type | ... |
-
-### UI output
-
-**Pattern:** [Link to ui-output-options.md section or define new pattern]
 ```
 
 Keep specs under ~60 lines unless the insight is complex.
@@ -116,59 +110,44 @@ If data is not in the schema, state **Not available in current Plaid schema**, s
 
 ## Calibration examples
 
-Grouped by UI output type. Full index: [examples/README.md](examples/README.md).
+Grouped by domain. Full index: [examples/README.md](examples/README.md).
 
-### Nested list
+### Net worth
 
-| Insight | File |
-|---|---|
-| Net worth snapshot | [net-worth-snapshot.md](examples/net-worth/net-worth-snapshot.md) |
-| Top 5 holdings | [top-5-holdings.md](examples/investment-account/top-5-holdings.md) |
-| Asset allocation | [asset-allocation.md](examples/investment-account/asset-allocation.md) |
-| Investment accounts by institution | [investment-accounts-by-institution.md](examples/investment-account/investment-accounts-by-institution.md) |
+| Insight | File | Analysis pattern |
+|---|---|---|
+| Net worth snapshot | [net-worth-snapshot.md](examples/net-worth/net-worth-snapshot.md) | Snapshot |
+| Net worth balance chart | [net-worth-balance-chart.md](examples/net-worth/net-worth-balance-chart.md) | Historical chart |
+| Assets / liabilities bar | [assets-liabilities-bar.md](examples/net-worth/assets-liabilities-bar.md) | Snapshot + composition |
+| Cash account detail | [cash-account-detail.md](examples/net-worth/cash-account-detail.md) | Snapshot + composite |
+| Overview dashboard | [overview-dashboard.md](examples/net-worth/overview-dashboard.md) | Composite |
 
-### Flat table
+### Cash flow
 
-| Insight | File |
-|---|---|
-| Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) |
-| Recurring spending | [recurring-spending.md](examples/cash-flow/recurring-spending.md) |
-| Top 5 biggest purchases | [top-5-biggest-purchases.md](examples/cash-flow/top-5-biggest-purchases.md) |
-| Recurring investments | [recurring-investments.md](examples/investment-account/recurring-investments.md) |
-| Cash account detail | [cash-account-detail.md](examples/net-worth/cash-account-detail.md) |
+| Insight | File | Analysis pattern |
+|---|---|---|
+| Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) | Period aggregation |
+| Recurring transactions | [recurring-transactions.md](examples/cash-flow/recurring-transactions.md) | Recurring detection |
+| Top 5 biggest purchases | [top-5-biggest-purchases.md](examples/cash-flow/top-5-biggest-purchases.md) | Top N ranking |
+| Cash inflow and outflow chart | [cash-inflow-outflow-chart.md](examples/cash-flow/cash-inflow-outflow-chart.md) | Period aggregation |
 
-### Line chart
+### Investment account
 
-| Insight | File |
-|---|---|
-| Net worth balance chart | [net-worth-balance-chart.md](examples/net-worth/net-worth-balance-chart.md) |
-| Investment performance chart | [investment-performance-chart.md](examples/investment-account/investment-performance-chart.md) |
+| Insight | File | Analysis pattern |
+|---|---|---|
+| Top 5 holdings | [top-5-holdings.md](examples/investment-account/top-5-holdings.md) | Snapshot + top N |
+| Asset allocation | [asset-allocation.md](examples/investment-account/asset-allocation.md) | Snapshot + composition |
+| Investment accounts by institution | [investment-accounts-by-institution.md](examples/investment-account/investment-accounts-by-institution.md) | Snapshot |
+| Recurring investments | [recurring-investments.md](examples/investment-account/recurring-investments.md) | Recurring detection |
+| Investment performance chart | [investment-performance-chart.md](examples/investment-account/investment-performance-chart.md) | Historical chart |
+| Investment account detail | [investment-account-detail.md](examples/investment-account/investment-account-detail.md) | Composite |
 
-### Composite
+### Alerts
 
-| Insight | File |
-|---|---|
-| Overview dashboard | [overview-dashboard.md](examples/net-worth/overview-dashboard.md) |
-| Investment account detail | [investment-account-detail.md](examples/investment-account/investment-account-detail.md) |
-
-### Combo line and bar chart
-
-| Insight | File |
-|---|---|
-| Cash inflow and outflow chart | [cash-inflow-outflow-chart.md](examples/cash-flow/cash-inflow-outflow-chart.md) |
-
-### Stacked bar
-
-| Insight | File |
-|---|---|
-| Assets / liabilities bar | [assets-liabilities-bar.md](examples/net-worth/assets-liabilities-bar.md) |
-
-### Insight card
-
-| Insight | File |
-|---|---|
-| Excess checking cash | [excess-checking-cash.md](examples/alerts/excess-checking-cash.md) |
-| Subscription price increase | [subscription-price-increase.md](examples/alerts/subscription-price-increase.md) |
-| Late paycheck | [late-paycheck.md](examples/alerts/late-paycheck.md) |
+| Insight | File | Analysis pattern |
+|---|---|---|
+| Excess checking cash | [excess-checking-cash.md](examples/alerts/excess-checking-cash.md) | Snapshot |
+| Subscription price increase | [subscription-price-increase.md](examples/alerts/subscription-price-increase.md) | Recurring detection + change |
+| Late paycheck | [late-paycheck.md](examples/alerts/late-paycheck.md) | Recurring detection + lateness |
 
 Match structure and tone; do not copy logic for a different insight.

@@ -1,8 +1,8 @@
 # Insight types catalog
 
-A taxonomy of insight **analysis patterns** we can build from Plaid datatables, grounded in the finalized examples in [examples/](examples/README.md). Use this when scoping a new insight: pick a pattern, then adapt domain (net worth, cash flow, investments), timeframe, and UI.
+A taxonomy of insight **analysis patterns** we can build from Plaid datatables, grounded in the finalized examples in [examples/](examples/README.md). Use this when scoping a new insight: pick a pattern, then adapt domain (net worth, cash flow, investments) and timeframe.
 
-For step-by-step spec authoring, see [SKILL.md](SKILL.md). For UI mapping, see [ui-output-options.md](ui-output-options.md).
+For step-by-step spec authoring, see [SKILL.md](SKILL.md).
 
 ---
 
@@ -15,37 +15,7 @@ For step-by-step spec authoring, see [SKILL.md](SKILL.md). For UI mapping, see [
 | **Investment account** | [investment-account/](examples/investment-account/) | What are my largest positions? How is the portfolio split? What do I invest on a schedule? |
 | **Alerts** | [alerts/](examples/alerts/) | Should I take action? Am I above or below a recommended threshold? |
 
-One insight usually combines **one analysis pattern** + **one domain** + **one UI pattern**.
-
----
-
-## Browse by UI output type
-
-For full build specs, see [ui-output-options.md](ui-output-options.md). Example specs remain in domain folders; the index below groups by how each insight renders.
-
-| UI type | Insights |
-|---|---|
-| [Nested list](ui-output-options.md#nested-list) | Net worth snapshot, Top 5 holdings, Asset allocation, Investment accounts by institution |
-| [Flat table](ui-output-options.md#flat-table) | Monthly spending by category, Recurring spending, Top 5 biggest purchases, Recurring investments |
-| [Line chart](ui-output-options.md#line-chart) | Net worth balance chart, Investment performance chart |
-| [Combo line and bar chart](ui-output-options.md#combo-line-and-bar-chart) | Cash inflow and outflow chart |
-| [Insight card](ui-output-options.md#insight-card) | Excess checking cash, Subscription price increase |
-
-| Insight | Domain | File | UI type |
-|---|---|---|---|
-| Net worth snapshot | Net worth | [net-worth-snapshot.md](examples/net-worth/net-worth-snapshot.md) | Nested list |
-| Top 5 holdings | Investment | [top-5-holdings.md](examples/investment-account/top-5-holdings.md) | Nested list |
-| Asset allocation | Investment | [asset-allocation.md](examples/investment-account/asset-allocation.md) | Nested list |
-| Investment accounts by institution | Investment | [investment-accounts-by-institution.md](examples/investment-account/investment-accounts-by-institution.md) | Nested list |
-| Monthly spending by category | Cash flow | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) | Flat table |
-| Recurring spending | Cash flow | [recurring-spending.md](examples/cash-flow/recurring-spending.md) | Flat table |
-| Top 5 biggest purchases | Cash flow | [top-5-biggest-purchases.md](examples/cash-flow/top-5-biggest-purchases.md) | Flat table |
-| Recurring investments | Investment | [recurring-investments.md](examples/investment-account/recurring-investments.md) | Flat table |
-| Net worth balance chart | Net worth | [net-worth-balance-chart.md](examples/net-worth/net-worth-balance-chart.md) | Line chart |
-| Investment performance chart | Investment | [investment-performance-chart.md](examples/investment-account/investment-performance-chart.md) | Line chart |
-| Cash inflow and outflow chart | Cash flow | [cash-inflow-outflow-chart.md](examples/cash-flow/cash-inflow-outflow-chart.md) | Combo line + bar chart |
-| Excess checking cash | Alerts | [excess-checking-cash.md](examples/alerts/excess-checking-cash.md) | Insight card |
-| Subscription price increase | Alerts | [subscription-price-increase.md](examples/alerts/subscription-price-increase.md) | Insight card |
+One insight usually combines **one analysis pattern** + **one domain**.
 
 ---
 
@@ -63,7 +33,6 @@ For full build specs, see [ui-output-options.md](ui-output-options.md). Example 
 | **Time** | Latest snapshot per user (`synced_at = MAX`) — via [net-worth-core](examples/net-worth/net-worth-core.md) `resolve_accounts_as_of` at `MAX(synced_at)` |
 | **Aggregation** | Per account, per security, or portfolio-wide sum |
 | **Output** | Scalar totals + array of detail rows |
-| **UI** | [Nested list](ui-output-options.md#net-worth--nested-list) (hierarchy with balances at each level) |
 | **Shared core** | [net-worth-core.md](examples/net-worth/net-worth-core.md) — `compute_net_worth(..., include_groups = true)` |
 
 **Examples**
@@ -97,7 +66,6 @@ For full build specs, see [ui-output-options.md](ui-output-options.md). Example 
 | **Time** | Calendar day series; point-in-time account state per day (carry forward between syncs) |
 | **Parameters** | `trailing_1m`, `trailing_6m`, `ytd`, `trailing_1y`, `all_time` |
 | **Output** | `points[]`, `window_start`, `window_end`, optional `value_min` / `value_max` |
-| **UI** | [Line chart](ui-output-options.md#net-worth-balance-chart--line-chart) |
 | **Shared core** | [net-worth-core.md](examples/net-worth/net-worth-core.md) — daily `resolve_accounts_as_of` + `compute_net_worth(..., include_groups = false)` per day |
 
 **Examples**
@@ -124,11 +92,10 @@ For full build specs, see [ui-output-options.md](ui-output-options.md). Example 
 | Aspect | Typical approach |
 |---|---|
 | **Primary tables** | `plaid_transactions` |
-| **Time** | Calendar month (or week/quarter) from transaction `date` |
+| **Time** | Up to trailing 24 calendar months, floored at earliest in-scope transaction (or single month / week / quarter) from transaction `date` |
 | **Dimension** | `personal_finance_category_primary`, merchant, account, etc. |
 | **Filters** | Exclude pending, removed, transfers/income/loan payments as needed; net refunds into category |
-| **Output** | `rows[]` + `period_totals[]` (or equivalent); or `months[]` for chart series |
-| **UI** | [Flat table](ui-output-options.md#monthly-spending-by-category--flat-table), [Combo line + bar chart](ui-output-options.md#cash-inflow-outflow-chart--combo-line-and-bar-chart) |
+| **Output** | `months[]` + sparse `rows[]` + `month_totals[]` (or `period_totals[]`); chart series use `months[]` with metric fields |
 | **Shared core** | [cash-flow-core.md](examples/cash-flow/cash-flow-core.md) — transactions joined to `account_type`; callers own scope, timeframe, and eligibility |
 
 **Examples**
@@ -156,10 +123,9 @@ For full build specs, see [ui-output-options.md](ui-output-options.md). Example 
 
 | Aspect | Typical approach |
 |---|---|
-| **Primary tables** | Holdings + securities; may require extension tables for fund decomposition |
-| **Classification** | Rules on security `type`, ISIN, enrichment weights, or category codes |
-| **Output** | `asset_classes[]` or category shares; `total_*_value`; handle `unclassified` explicitly |
-| **UI** | [Nested list](ui-output-options.md#asset-allocation--nested-list) with % / $ toggle at class level |
+| **Primary tables** | Holdings + securities |
+| **Classification** | Rules on `plaid_investment_securities.type` or transaction category codes |
+| **Output** | `asset_classes[]` or category shares; `total_*_value` |
 
 **Examples**
 
@@ -172,10 +138,8 @@ For full build specs, see [ui-output-options.md](ui-output-options.md). Example 
 
 - Sector or geography allocation (needs enrichment beyond Plaid)
 - Account-type mix (% in 401k vs brokerage vs IRA)
-- Spend mix pie for a single month (same data as monthly-by-category, different UI)
+- Spend mix for a single month (same data as monthly-by-category)
 - Liability mix (mortgage vs credit card vs student loan)
-
-**Schema note:** ETF/mutual fund allocation requires `security_asset_allocation` (or similar) — not in raw Plaid schema. See [asset-allocation.md](examples/investment-account/asset-allocation.md).
 
 ---
 
@@ -191,7 +155,6 @@ For full build specs, see [ui-output-options.md](ui-output-options.md). Example 
 | **Sort** | Descending by value or amount |
 | **Limit** | Top 5, top 10, configurable `N` |
 | **Output** | Ranked array with `rank`, `total_value`, nested `accounts[]` or similar |
-| **UI** | [Nested list](ui-output-options.md#top-5-holdings--nested-list) |
 
 **Examples**
 
@@ -213,80 +176,64 @@ For full build specs, see [ui-output-options.md](ui-output-options.md). Example 
 
 **Question:** What charges or contributions happen on a predictable schedule?
 
-**Data shape:** Flat list of detected patterns: merchant or security, frequency, typical amount, last occurrence; 6-month detection window is the current convention.
+**Data shape:** Flat list of detected patterns grouped into product buckets (`bills`, `income`, `subscriptions`; `income` = `INCOME`; `bills` = `RENT_AND_UTILITIES` or `LOAN_PAYMENTS`; `subscriptions` = all other recurring outflows including uncategorized): merchant or security, frequency, typical amount, last occurrence. **Detection lookback** loads the last 24 months of transactions (required for annual and quarterly cadences); **6-month display window** (`window_start` / `window_end`) is metadata for the display window only.
 
 | Aspect | Typical approach |
 |---|---|
-| **Primary tables** | `plaid_transactions` (spend) or `plaid_investment_transactions` (invest) |
-| **Detection** | Group by merchant or account+security; ≥2 occurrences; median interval → frequency bucket; amount consistency (±20% for spend); active filter from `last_date` |
+| **Primary tables** | `plaid_transactions` (spend/income) or `plaid_investment_transactions` (invest) |
+| **Detection** | `detection_lookback_start` = today − 24 months; dual eligibility paths for outflow and inflow; group by merchant or account+security; ≥2 occurrences; median interval → frequency bucket; amount consistency (±20%); active filter from `last_date` |
+| **Classification** | Assign `group`: `income` when `personal_finance_category_primary = INCOME`; `bills` when primary is `RENT_AND_UTILITIES` or `LOAN_PAYMENTS`; `subscriptions` for all remaining outflows including uncategorized |
 | **Frequencies** | Weekly, biweekly, semi-monthly, monthly, quarterly, annual |
-| **Output** | `recurrences[]`, `window_start`, `window_end` |
-| **UI** | [Flat table](ui-output-options.md#recurring-spending--flat-table) |
-| **Shared core** | [cash-flow-core.md](examples/cash-flow/cash-flow-core.md) — joined transaction table; callers apply scope, timeframe, and eligibility ([recurring spending](examples/cash-flow/recurring-spending.md), [late paycheck](examples/alerts/late-paycheck.md)) |
+| **Output** | `recurrences[]`, `by_group[]`, `by_account[]`, `detection_lookback_start`, `window_start`, `window_end` |
+| **Shared core** | [cash-flow-core.md](examples/cash-flow/cash-flow-core.md) — joined transaction table; callers apply scope, timeframe, and eligibility ([recurring transactions](examples/cash-flow/recurring-transactions.md), [late paycheck](examples/alerts/late-paycheck.md)) |
 
 **Examples**
 
 | Insight | File |
 |---|---|
-| Recurring spending | [recurring-spending.md](examples/cash-flow/recurring-spending.md) |
+| Recurring transactions | [recurring-transactions.md](examples/cash-flow/recurring-transactions.md) |
 | Recurring investments | [recurring-investments.md](examples/investment-account/recurring-investments.md) |
 
 **Variants you can build**
 
-- Recurring income (payroll detection — filter to `INCOME` category, inflows)
-- Late paycheck alert — [late-paycheck.md](examples/alerts/late-paycheck.md)
-- Subscriptions only (filter categories or merchant tags)
+- Late paycheck alert — [late-paycheck.md](examples/alerts/late-paycheck.md) (consume `group = income` from recurring transactions)
+- Subscriptions only — filter `group = subscriptions`
 - Subscription price increase alert — [subscription-price-increase.md](examples/alerts/subscription-price-increase.md)
-- Estimated monthly recurring total (rollup row derived from `recurrences[]`)
-- Dormant recurrences (failed active filter — “used to pay X”)
+- Estimated monthly recurring total (rollup row derived from `by_group[]`, `by_account[]`, or `recurrences[]`)
+- Dormant recurrences (failed active filter — "used to pay X")
 
 **Schema note:** Plaid has no recurring-transaction flag in the datatables; patterns are **inferred**. Document limitations in the spec (missed merges, variable bills, merchant name drift).
 
 ---
 
-## UI patterns × analysis patterns
-
-| UI pattern | Best for analysis patterns |
-|---|---|
-| **Nested list** | Snapshot, composition/allocation, top N with drill-down |
-| **Line chart** | Historical balance / value time series |
-| **Combo line + bar chart** | Period aggregation with inflow/outflow bars and a net trend line |
-| **Flat table** | Period aggregation, recurring lists, simple ranked tables without nesting |
-| **Insight card** | Snapshot alerts with hero metric and optional account breakdown |
-
-Full UI specs: [ui-output-options.md](ui-output-options.md).
-
----
-
 ## Quick reference: all finalized examples
 
-Grouped by UI output type. Full index: [examples/README.md](examples/README.md).
+Grouped by domain. Full index: [examples/README.md](examples/README.md).
 
-| Insight | Domain | Analysis pattern | UI |
-|---|---|---|---|
-| Net worth snapshot | Net worth | Snapshot | Nested list |
-| Top 5 holdings | Investment | Snapshot + top N | Nested list |
-| Asset allocation | Investment | Snapshot + composition | Nested list |
-| Investment accounts by institution | Investment | Snapshot | Nested list |
-| Monthly spending by category | Cash flow | Period aggregation | Flat table |
-| Top 5 biggest purchases | Cash flow | Top N ranking | Flat table |
-| Recurring spending | Cash flow | Recurring detection | Flat table |
-| Recurring investments | Investment | Recurring detection | Flat table |
-| Net worth balance chart | Net worth | Historical chart | Line chart |
-| Investment performance chart | Investment | Historical chart | Line chart |
-| Cash inflow and outflow chart | Cash flow | Period aggregation | Combo line + bar chart |
-| Excess checking cash | Alerts | Snapshot | Insight card |
-| Subscription price increase | Alerts | Recurring detection + change | Insight card |
-| Late paycheck | Alerts | Recurring detection + lateness | Insight card |
+| Insight | Domain | Analysis pattern |
+|---|---|---|
+| Net worth snapshot | Net worth | Snapshot |
+| Top 5 holdings | Investment | Snapshot + top N |
+| Asset allocation | Investment | Snapshot + composition |
+| Investment accounts by institution | Investment | Snapshot |
+| Monthly spending by category | Cash flow | Period aggregation |
+| Top 5 biggest purchases | Cash flow | Top N ranking |
+| Recurring transactions | Cash flow | Recurring detection |
+| Recurring investments | Investment | Recurring detection |
+| Net worth balance chart | Net worth | Historical chart |
+| Investment performance chart | Investment | Historical chart |
+| Cash inflow and outflow chart | Cash flow | Period aggregation |
+| Excess checking cash | Alerts | Snapshot |
+| Subscription price increase | Alerts | Recurring detection + change |
+| Late paycheck | Alerts | Recurring detection + lateness |
 
 ---
 
 ## Choosing a pattern for a new insight
 
-1. **What is the user asking?** — “right now”, “over time”, “how much per month”, “what repeats”, “what’s biggest”, or “how is it split”.
+1. **What is the user asking?** — "right now", "over time", "how much per month", "what repeats", "what's biggest", or "how is it split".
 2. **What data exists?** — Balances need `plaid_accounts` history for charts; spend needs `plaid_transactions`; positions need holdings + securities.
 3. **Snapshot or history?** — Latest `synced_at` vs point-in-time per day vs transaction `date` buckets.
 4. **Detail + rollup rule** — Totals always derived from detail rows ([rollup convention](SKILL.md#rollup-convention) in SKILL.md).
-5. **Pick UI** — Match shape to [ui-output-options.md](ui-output-options.md) or define a new section there.
 
 When the insight is finalized, add a spec under [examples/](examples/README.md) and a row to the calibration table in [SKILL.md](SKILL.md).

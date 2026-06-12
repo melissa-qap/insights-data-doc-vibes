@@ -29,7 +29,7 @@ Equivalent to [net worth core](net-worth-core.md) Layer 1 with historical query 
 |---|---|
 | `timeframe` | `trailing_1m`, `trailing_3m`, `trailing_6m`, `ytd`, `trailing_1y`, `all_time` |
 
-**UI timeframe tab mapping:** `1M` → `trailing_1m`; `3M` → `trailing_3m`; `YTD` → `ytd`; `1Y` → `trailing_1y`; `All` → `all_time`.
+**Timeframe aliases:** `1M` → `trailing_1m`; `3M` → `trailing_3m`; `YTD` → `ytd`; `1Y` → `trailing_1y`; `All` → `all_time`.
 
 ### Calculation / analysis
 
@@ -52,7 +52,7 @@ Equivalent to [net worth core](net-worth-core.md) Layer 1 with historical query 
    - Collect daily `{ date, net_worth }` values
    - Sort ascending by `date`
 5. **Derive period return from `points`**
-   - Do not emit separate start/end or min/max fields — the UI derives hero value and Y-axis scale from `points[]` at render time
+   - Do not emit separate start/end or min/max fields — derive latest value and scale bounds from `points[]`
    - `period_return_amount` = `points[last].net_worth − points[0].net_worth`
    - `period_return_pct` = `period_return_amount / points[0].net_worth` when `points[0].net_worth > 0`; else omit
 6. **`as_of`**
@@ -63,7 +63,7 @@ Equivalent to [net worth core](net-worth-core.md) Layer 1 with historical query 
 - Between syncs, consecutive days share the same balance (carry forward until the next sync) — implemented by resolving at `end_of_day(D)` per [net worth core](net-worth-core.md).
 - `all_time` begins on the first day with at least one account snapshot, not before linked accounts exist.
 - **Return type:** holding-period change on account balances, not time-weighted return. Deposits, withdrawals, and transfers are not adjusted out.
-- **Paired UI invariant:** `points[last].net_worth` must equal [net worth snapshot](net-worth-snapshot.md) `net_worth` when both use the same `window_end`.
+- **Paired insight invariant:** `points[last].net_worth` must equal [net worth snapshot](net-worth-snapshot.md) `net_worth` when both use the same `window_end`.
 
 ### Data output
 
@@ -76,7 +76,3 @@ Equivalent to [net worth core](net-worth-core.md) Layer 1 with historical query 
 | `period_return_amount` | number | `points[last].net_worth − points[0].net_worth` |
 | `period_return_pct` | number | Fraction (e.g. `0.035` = 3.5%); omit if `points[0].net_worth` ≤ 0 |
 | `as_of` | date | Same as `window_end` |
-
-### UI output
-
-**Pattern:** [Line chart](../../ui-output-options.md#net-worth-balance-chart--line-chart) — `date` on X-axis, `net_worth` on Y-axis; hero = `points[last].net_worth`; subtitle shows `period_return_amount` and `period_return_pct`. Y-axis scale derived by chart library from `points[]`. **`points[last].net_worth` is the net worth headline** when paired with [net worth snapshot](net-worth-snapshot.md) (that list omits a net worth total).

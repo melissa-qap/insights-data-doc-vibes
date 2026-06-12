@@ -45,7 +45,7 @@ Single depository account header, available balance and subtype, and recent post
 1. **Load account** — latest row for `account_id`; reject if not `depository`
 2. **Header** — `{ title: name + mask, institution_name, synced_at }`
 3. **Info block** — `balances_available`, formatted `subtype`
-4. **Account owner** — **Not available in current Plaid schema.** Omit from UI.
+4. **Account owner** — **Not available in current Plaid schema.** Omit from output.
 5. **Transactions** — sort by `date` desc; cap at `transaction_limit`; `display_name = COALESCE(merchant_name, name)`
 
 ### Data output
@@ -59,7 +59,3 @@ Single depository account header, available balance and subtype, and recent post
 | `balances_available` | number \| null | May be null |
 | `subtype` | string | Formatted account type |
 | `transactions[]` | array | `{ transaction_id, display_name, date, amount }` |
-
-### UI output
-
-**Pattern:** [Account detail — flat table](../../ui-output-options.md#account-detail--flat-table) — header block + transaction rows.

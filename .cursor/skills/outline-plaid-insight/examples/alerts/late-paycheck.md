@@ -4,7 +4,7 @@
 
 Alerts when a **detected recurring paycheck** (stable `INCOME` inflow on depository accounts) is **≥ 3 calendar days past** its predicted next pay date with no matching deposit since the last occurrence. Each employer/payer source is evaluated independently.
 
-Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table.
+Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paycheck candidates can be sourced from [recurring transactions](../cash-flow/recurring-transactions.md) (`recurrences[]` where `group = 'income'`) or re-run using the inflow path in that spec.
 
 ### Required input data
 
@@ -15,7 +15,7 @@ Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table.
 | `user_id` | User scope |
 | `account_id` | Depository account identifier |
 | `name` | Display name — used for last-deposit account label |
-| `mask` | Optional last digits for UI |
+| `mask` | Optional last digits for account label |
 | `type` | Must be `depository` |
 
 **Input:** `user_id = ?`. Latest snapshot. Used for `last_account_id` display and account labels.
@@ -62,7 +62,7 @@ Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table.
    - Re-check **≥ 3** occurrences remain
 10. **Detect frequency**
     - Compute median gap in days between consecutive `date` values (sorted ascending)
-    - Assign the first matching bucket (same ranges as [recurring spending](../cash-flow/recurring-spending.md)):
+    - Assign the first matching bucket (same ranges as [recurring transactions](../cash-flow/recurring-transactions.md)):
       - **Biweekly:** 10–15 days
       - **Semi-monthly:** 16–22 days
       - **Monthly:** 23–40 days
@@ -105,13 +105,9 @@ Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table.
 | `window_start` | date | Start of 6-month detection window |
 | `window_end` | date | End of detection window |
 
-### UI output
-
-**Pattern:** [Late paycheck — insight card](../../ui-output-options.md#late-paycheck--insight-card)
-
 ### Notes
 
-- **Cadence inferred** from transaction history — same limitations as [recurring spending](../cash-flow/recurring-spending.md) (missed merges, merchant name drift, variable pay).
+- **Cadence inferred** from transaction history — same limitations as [recurring transactions](../cash-flow/recurring-transactions.md) (missed merges, merchant name drift, variable pay). Prefer consuming `recurrences[]` where `group = 'income'` from recurring transactions when available.
 - **Not available in current Plaid schema:** Plaid Recurring Transactions / payroll flags; user-defined pay schedule or employer list — would need extension preferences table.
 - **TRANSFER_IN payroll** (P2P or inter-account) may be missed when categorized as transfer rather than `INCOME`.
 - **Variable pay / bonuses** may fail the ±20% filter or split one employer into multiple payer groups.

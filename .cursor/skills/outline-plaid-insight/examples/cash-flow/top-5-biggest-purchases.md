@@ -70,11 +70,7 @@ Uses [cash flow core](cash-flow-core.md) transaction table.
 | `purchases` | array | Top 5 transactions: `{ rank, transaction_id, merchant_name, category, amount, date, account_id, account_name }` — ordered by `rank` (1 = largest) |
 | `window_start` | date | Start of trailing 30-day window |
 | `window_end` | date | End of window (today) |
-| `period_total_spend` | number \| optional | Sum of all eligible outflows in window — only if UI shows a footer total |
-
-### UI output
-
-**Pattern:** [Flat table](../../ui-output-options.md#top-5-biggest-purchases--flat-table) — columns `Merchant`, `Category`, `Amount`, `Date`, optional `Account`.
+| `period_total_spend` | number \| optional | Optional rollup — sum of all eligible outflows in window |
 
 ### Notes
 

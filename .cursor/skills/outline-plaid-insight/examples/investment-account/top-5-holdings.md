@@ -39,7 +39,7 @@ Shows the user's five largest investment positions by market value across all li
 | `security_id` | Join key to holdings |
 | `name` | Security display name |
 | `ticker_symbol` | Ticker for display |
-| `type` | Security type (`equity`, `etf`, `mutual fund`, etc.) |
+| `type` | Security type — one of 9 Plaid types; see [enum_investment_security_type](../../plaid-api-schema.md#enum_investment_security_type) |
 | `synced_at` | Must match holdings `synced_at` on join |
 
 **Input:** `user_id = ?`. Latest snapshot. Join to holdings on `security_id` + `synced_at`.
@@ -78,7 +78,3 @@ Shows the user's five largest investment positions by market value across all li
 | `holdings` | array | Top 5 positions: `{ rank, security_id, name, ticker_symbol, total_value, security_type, accounts }` — ordered by `rank` (1 = largest) |
 | `holdings[].accounts` | array | Per-account breakdown: `{ account_id, account_name, value }` — sorted by `value` descending; sums to `total_value` |
 | `as_of` | timestamp | `synced_at` of the snapshot used |
-
-### UI output
-
-**Pattern:** [Nested list](../../ui-output-options.md#top-5-holdings--nested-list) — holding at top level with `total_value`; accounts nested below with per-account `value`.

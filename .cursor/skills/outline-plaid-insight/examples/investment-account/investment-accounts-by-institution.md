@@ -63,7 +63,7 @@ Source: Plaid Item metadata at link time (not a standard Plaid datatable row tod
      - If balance is still null or the holdings sum is zero with no rows, **exclude** the account from output
 5. **Build account rows**
    - `{ account_id, name, mask, subtype, balance, balance_source, item_id, institution_name }`
-   - `name` prefers `plaid_accounts.name`; append ` ••{mask}` in the UI layer when `mask` is present
+   - `name` prefers `plaid_accounts.name`; append ` ••{mask}` to account label when `mask` is present
    - `institution_name` from `plaid_items`; if missing, use `"Unknown institution"`
 6. **Group by institution**
    - Group accounts by `item_id`
@@ -75,7 +75,7 @@ Source: Plaid Item metadata at link time (not a standard Plaid datatable row tod
    - Institutions by `total_balance` descending
    - Accounts within each institution by `balance` descending
 
-**Portfolio total:** Not included in this insight. Combined investment value is provided by [investment performance chart](investment-performance-chart.md) (`end_value` at the active timeframe end) and displayed alongside this list in the UI.
+**Portfolio total:** Not included in this insight. Pair with [investment performance chart](investment-performance-chart.md) (`end_value` at the active timeframe end) for the combined portfolio value.
 
 ### Data output
 
@@ -87,7 +87,3 @@ Source: Plaid Item metadata at link time (not a standard Plaid datatable row tod
 | `institutions[].institution_name` | string | Display name from `plaid_items` |
 | `institutions[].total_balance` | number | Sum of child account balances (derived from `accounts`) |
 | `institutions[].accounts` | array | `{ account_id, name, mask, subtype, balance, balance_source }` — sorted by `balance` descending |
-
-### UI output
-
-**Pattern:** [Nested list](../../ui-output-options.md#investment-accounts-by-institution--nested-list) — institutions at the top level, individual accounts nested below. Pair with [investment performance chart](investment-performance-chart.md) for the portfolio total.
