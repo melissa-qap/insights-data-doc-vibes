@@ -243,7 +243,7 @@ Source: `/investments/holdings/get` → `securities[]`. One row per security per
 | `security_id` | string | `security_id` |
 | `name` | string \| null | `name` |
 | `ticker_symbol` | string \| null | `ticker_symbol` |
-| `type` | string | Summary security type — see [enum_investment_security_type](#enum_investment_security_type) |
+| `type` | string | Summary security type — see [enum_investment_security_type](#enum_investment_security_type); normalize via [enum_investment_security_subtype](#enum_investment_security_subtype) when raw value is not a summary type |
 | `isin` | string \| null | `isin` |
 | `close_price` | number \| null | `close_price` |
 | `close_price_as_of` | date \| null | `close_price_as_of` |
@@ -318,6 +318,13 @@ Source: `/liabilities/get` → `liabilities.mortgage[]`. One row per mortgage pe
 
 Lookup tables for enum-like datatable columns. One row per allowed value.
 
+### Table formats
+
+| Enum shape | Columns | Used for |
+| --- | --- | --- |
+| Flat | `Value` \| `Description` | Single-level enums (account type, payment channel, etc.) |
+| Hierarchical | `Type` \| `Subtype` \| `Description` | Parent/child enums — one row per subtype |
+
 ### Enum index
 
 | Datatable column | Enum table |
@@ -329,6 +336,7 @@ Lookup tables for enum-like datatable columns. One row per allowed value.
 | `plaid_transactions.personal_finance_category_detailed` | [enum_pfc_detailed](#enum_pfc_detailed) |
 | `plaid_transactions.personal_finance_category_confidence_level` | [enum_pfc_confidence_level](#enum_pfc_confidence_level) |
 | `plaid_investment_securities.type` | [enum_investment_security_type](#enum_investment_security_type) |
+| *(API only)* `securities[].subtype` | [enum_investment_security_subtype](#enum_investment_security_subtype) |
 | `plaid_liabilities_student.loan_status_type` | [enum_loan_status_type](#enum_loan_status_type) |
 | `plaid_liabilities_mortgage.interest_rate_type` | [enum_interest_rate_type](#enum_interest_rate_type) |
 
@@ -490,7 +498,7 @@ PFCv2 adds subcategories (income, loan disbursement/repayment, bank fees). Defau
 
 `plaid_transactions.personal_finance_category_detailed` — granular transaction category (PFCv1).
 
-| Primary | Detailed | Description |
+| Type | Subtype | Description |
 | --- | --- | --- |
 | `INCOME` | `INCOME_DIVIDENDS` | Dividends from investment accounts |
 | `INCOME` | `INCOME_INTEREST_EARNED` | Income from interest on savings accounts |
@@ -617,26 +625,75 @@ Source: [Plaid PFCv1 taxonomy CSV](https://plaid.com/documents/transactions-pers
 
 ### enum_investment_security_type
 
-`plaid_investment_securities.type` — Plaid summary security type (`securities[].type`). These 9 values are what the datatable normally stores. `securities[].subtype` is granular classification (not in the datatable today); use the Subtypes column to normalize raw values. These types are also the allocation output buckets for [asset allocation](examples/investment-account/asset-allocation.md) and [investment account detail](examples/investment-account/investment-account-detail.md).
+`plaid_investment_securities.type` — Plaid summary security type (`securities[].type`). These 9 values are what the datatable normally stores. These types are also the allocation output buckets for [asset allocation](examples/investment-account/asset-allocation.md) and [investment account detail](examples/investment-account/investment-account-detail.md).
 
-| Type | Description | Subtypes |
+| Value | Description |
+| --- | --- |
+| `cash` | Cash, currency, and money market funds |
+| `cryptocurrency` | Digital or virtual currencies |
+| `derivative` | Options, warrants, and other derivative instruments |
+| `equity` | Domestic and foreign equities |
+| `etf` | Multi-asset exchange-traded investment funds |
+| `fixed income` | Bonds and certificates of deposit |
+| `loan` | Loans and loan receivables |
+| `mutual fund` | Open- and closed-end pooled vehicles |
+| `other` | Unknown or other investment types |
+
+Source: [Plaid Investments API](https://plaid.com/docs/api/products/investments/)
+
+---
+
+### enum_investment_security_subtype
+
+`securities[].subtype` — granular security classification (API only; not in datatable today). Maps raw subtype values to summary types in [enum_investment_security_type](#enum_investment_security_type).
+
+| Type | Subtype | Description |
 | --- | --- | --- |
-| `cash` | Cash, currency, and money market funds | `cash`, `cash management bill`, `money market debt` |
-| `cryptocurrency` | Digital or virtual currencies | `cryptocurrency` |
-| `derivative` | Options, warrants, and other derivative instruments | `derivative`, `option`, `warrant` |
-| `equity` | Domestic and foreign equities | `equity`, `common stock`, `depositary receipt`, `preferred equity`, `convertible equity`, `structured equity product`, `unit`, `real estate investment trust`, `limited partnership unit` |
-| `etf` | Multi-asset exchange-traded investment funds | `etf` |
-| `fixed income` | Bonds and certificates of deposit | `fixed income`, `bond`, `municipal bond`, `convertible bond`, `mortgage backed security`, `treasury inflation protected securities`, `bill`, `note`, `medium term note`, `float rating note`, `asset backed security`, `bond with warrants`, `depositary receipt on debt`, `preferred convertible` |
-| `loan` | Loans and loan receivables | `loan` |
-| `mutual fund` | Open- and closed-end pooled vehicles | `mutual fund`, `fund of funds` |
-| `other` | Unknown or other investment types | `other`, `hedge fund`, `private equity fund`, null/unknown |
+| `cash` | `cash` | Cash or currency holding |
+| `cash` | `cash management bill` | Cash management bill |
+| `cash` | `money market debt` | Money market debt instrument |
+| `cryptocurrency` | `cryptocurrency` | Cryptocurrency |
+| `derivative` | `derivative` | Derivative instrument |
+| `derivative` | `option` | Option contract |
+| `derivative` | `warrant` | Warrant |
+| `equity` | `equity` | Equity security |
+| `equity` | `common stock` | Common stock |
+| `equity` | `depositary receipt` | Depositary receipt |
+| `equity` | `preferred equity` | Preferred equity |
+| `equity` | `convertible equity` | Convertible equity |
+| `equity` | `structured equity product` | Structured equity product |
+| `equity` | `unit` | Unit |
+| `equity` | `real estate investment trust` | Real estate investment trust |
+| `equity` | `limited partnership unit` | Limited partnership unit |
+| `etf` | `etf` | Exchange-traded fund |
+| `fixed income` | `fixed income` | Fixed income security |
+| `fixed income` | `bond` | Bond |
+| `fixed income` | `municipal bond` | Municipal bond |
+| `fixed income` | `convertible bond` | Convertible bond |
+| `fixed income` | `mortgage backed security` | Mortgage-backed security |
+| `fixed income` | `treasury inflation protected securities` | Treasury inflation-protected securities |
+| `fixed income` | `bill` | Bill |
+| `fixed income` | `note` | Note |
+| `fixed income` | `medium term note` | Medium-term note |
+| `fixed income` | `float rating note` | Floating-rate note |
+| `fixed income` | `asset backed security` | Asset-backed security |
+| `fixed income` | `bond with warrants` | Bond with warrants |
+| `fixed income` | `depositary receipt on debt` | Depositary receipt on debt |
+| `fixed income` | `preferred convertible` | Preferred convertible |
+| `loan` | `loan` | Loan receivable |
+| `mutual fund` | `mutual fund` | Mutual fund |
+| `mutual fund` | `fund of funds` | Fund of funds |
+| `other` | `other` | Other investment type |
+| `other` | `hedge fund` | Hedge fund |
+| `other` | `private equity fund` | Private equity fund |
+| `other` | `null` | Unknown or missing classification |
 
 Source: [Plaid Investments API](https://plaid.com/docs/api/products/investments/)
 
 **Normalization rule:**
 
-1. If `type` is already one of the 9 values above, use it as-is.
-2. Else if `subtype` is present, map via the Subtypes column.
+1. If `type` is already one of the 9 values in [enum_investment_security_type](#enum_investment_security_type), use it as-is.
+2. Else if `subtype` is present, map via [enum_investment_security_subtype](#enum_investment_security_subtype).
 3. Else → `other`.
 
 Each holding is assigned 100% of `institution_value` to one type bucket. Instrument type reflects Plaid classification, not underlying fund composition (e.g. a bond ETF with `type = etf` counts as `etf`).
@@ -1033,8 +1090,8 @@ Returns current investment positions for investment-type accounts.
 | `security_id` | string | Join to `holdings[].security_id` |
 | `name` | string \| null | Full security name |
 | `ticker_symbol` | string \| null | Exchange ticker |
-| `type` | string | Summary security type — see [enum_investment_security_type](#enum_investment_security_type) |
-| `subtype` | string \| null | Granular security classification — see [enum_investment_security_type](#enum_investment_security_type) |
+| `type` | string | Summary security type — see [enum_investment_security_type](#enum_investment_security_type); normalize via [enum_investment_security_subtype](#enum_investment_security_subtype) when raw value is not a summary type |
+| `subtype` | string \| null | Granular security classification — see [enum_investment_security_subtype](#enum_investment_security_subtype) |
 | `isin` | string \| null | ISIN |
 | `close_price` | number \| null | Latest closing price |
 | `close_price_as_of` | string \| null | Date of close price |
