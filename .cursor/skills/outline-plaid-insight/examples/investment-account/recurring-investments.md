@@ -76,8 +76,12 @@ Lists all **active** recurring investment activity across linked investment acco
    - `{ account_id, account_name, security_name, ticker_symbol, type, subtype, frequency, typical_amount, last_date, occurrence_count }`
 12. **Sort rows**
     - By frequency order (weekly → biweekly → semi-monthly → monthly → quarterly → annual), then `typical_amount` descending
+13. **Format output**
+    - Apply [output formatting](../../SKILL.md#output-formatting): round all monetary fields (`typical_amount`) to 2 dp
 
 ### Data output
+
+**Formatting:** Dollar fields — 2 dp ([SKILL.md](../../SKILL.md#output-formatting)).
 
 | Field | Type | Description |
 |---|---|---|

@@ -74,10 +74,14 @@ Source: Plaid Item metadata at link time (not a standard Plaid datatable row tod
 7. **Sort**
    - Institutions by `total_balance` descending
    - Accounts within each institution by `balance` descending
+8. **Format output**
+   - Apply [output formatting](../../SKILL.md#output-formatting): round all monetary fields (`balance`, `total_balance`) to 2 dp
 
 **Portfolio total:** Not included in this insight. Pair with [investment performance chart](investment-performance-chart.md) (`end_value` at the active timeframe end) for the combined portfolio value.
 
 ### Data output
+
+**Formatting:** Dollar fields — 2 dp ([SKILL.md](../../SKILL.md#output-formatting)).
 
 | Field | Type | Description |
 |---|---|---|

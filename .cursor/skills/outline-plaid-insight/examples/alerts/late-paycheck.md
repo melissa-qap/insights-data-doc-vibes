@@ -4,7 +4,7 @@
 
 Alerts when a **detected recurring paycheck** (stable `INCOME` inflow on depository accounts) is **≥ 3 calendar days past** its predicted next pay date with no matching deposit since the last occurrence. Each employer/payer source is evaluated independently.
 
-Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paycheck candidates can be sourced from [recurring transactions](../cash-flow/recurring-transactions.md) (`recurrences[]` where `group = 'income'`) or re-run using the inflow path in that spec.
+Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paycheck candidates can be sourced from [recurring transactions](../cash-flow/recurring-transactions.md) (`recurrences[]` where `group = 'income'`) or by re-running recurring transactions and filtering `group = 'income'`. This alert may still apply its own depository-only filter when evaluating lateness even though recurring detection is broader.
 
 ### Required input data
 
@@ -63,14 +63,12 @@ Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paychec
 10. **Detect frequency**
     - Compute median gap in days between consecutive `date` values (sorted ascending)
     - Assign the first matching bucket (same ranges as [recurring transactions](../cash-flow/recurring-transactions.md)):
-      - **Biweekly:** 10–15 days
-      - **Semi-monthly:** 16–22 days
+      - **Biweekly:** 10–22 days
       - **Monthly:** 23–40 days
-    - Exclude groups outside these buckets or matching weekly, quarterly, or annual ranges
+    - Exclude groups outside these buckets or matching weekly or annual ranges
 11. **Active filter**
     - Keep only if `last_date` is within **1.5×** the bucket's typical interval:
-      - Biweekly: ≤ 23 days ago
-      - Semi-monthly: ≤ 33 days ago
+      - Biweekly: ≤ 33 days ago
       - Monthly: ≤ 60 days ago
 12. **Typical amount**
     - Median of `ABS(amount)` across occurrences in the group
@@ -93,8 +91,12 @@ Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paychec
 17. **Rollups (from detail rows only):**
     - `has_late_paychecks` = `late_paychecks.length > 0`
     - `late_count` = `late_paychecks.length`
+18. **Format output**
+    - Apply [output formatting](../../SKILL.md#output-formatting): round monetary fields (`typical_amount`) to 2 dp; leave `grace_days` and `days_late` as integers (no rounding)
 
 ### Data output
+
+**Formatting:** Dollar fields — 2 dp ([SKILL.md](../../SKILL.md#output-formatting)); `grace_days` and `days_late` excluded (counts).
 
 | Field | Type | Description |
 |---|---|---|
@@ -107,7 +109,7 @@ Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paychec
 
 ### Notes
 
-- **Cadence inferred** from transaction history — same limitations as [recurring transactions](../cash-flow/recurring-transactions.md) (missed merges, merchant name drift, variable pay). Prefer consuming `recurrences[]` where `group = 'income'` from recurring transactions when available.
+- **Cadence inferred** from transaction history — same limitations as [recurring transactions](../cash-flow/recurring-transactions.md) (missed merges, merchant name drift, variable pay). Prefer consuming `recurrences[]` where `group = 'income'` from recurring transactions when available; use `next_date` and `median_gap_days` from those rows instead of recomputing `expected_next_date` in step 14. Ignore `occurrences[]` on recurrence rows — this alert uses summary fields only.
 - **Not available in current Plaid schema:** Plaid Recurring Transactions / payroll flags; user-defined pay schedule or employer list — would need extension preferences table.
 - **TRANSFER_IN payroll** (P2P or inter-account) may be missed when categorized as transfer rather than `INCOME`.
 - **Variable pay / bonuses** may fail the ±20% filter or split one employer into multiple payer groups.

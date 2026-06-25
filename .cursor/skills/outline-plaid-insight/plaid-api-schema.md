@@ -157,8 +157,9 @@ Source: Plaid Item metadata at link time (e.g. from `/link/token/create` callbac
 | `item_id` | string | Join to `item_id` on all Plaid datatables |
 | `institution_name` | string | Display name for the linked institution |
 | `institution_id` | string \| null | Optional Plaid institution ID (e.g. `ins_3`) |
+| `transactions_sync_cursor` | string \| null | Last `next_cursor` from `/transactions/sync` for this Item; `null` before first sync — server-managed, not client-supplied |
 
-Used by [investment accounts by institution](examples/investment-account/investment-accounts-by-institution.md) to group accounts under institution labels. `item_id` alone is on every datatable row; institution names are not.
+Used by [investment accounts by institution](examples/investment-account/investment-accounts-by-institution.md) to group accounts under institution labels. `item_id` alone is on every datatable row; institution names are not. `transactions_sync_cursor` is updated by `POST /v1/plaid/sync/transactions` — see [cash flow APIs](../../design-api/examples/cash-flow/cash-flow-apis.md).
 
 ---
 
@@ -176,13 +177,14 @@ Optional enrichment: `balances_margin_loan_amount` from `/investments/holdings/g
 | `mask` | string \| null | `mask` |
 | `type` | string | See [enum_account_type](#enum_account_type) |
 | `subtype` | string \| null | See [enum_account_subtype](#enum_account_subtype) |
+| `holder_category` | string \| null | `holder_category` — `personal`, `business`, `unrecognized` (beta; often null) |
 | `balances_available` | number \| null | `balances.available` |
 | `balances_current` | number \| null | `balances.current` |
 | `balances_limit` | number \| null | `balances.limit` |
 | `balances_iso_currency_code` | string \| null | `balances.iso_currency_code` |
 | `balances_unofficial_currency_code` | string \| null | `balances.unofficial_currency_code` |
 | `balances_last_updated_datetime` | string \| null | `balances.last_updated_datetime` |
-| `balances_margin_loan_amount` | number \| null | `balances.margin_loan_amount` (investment endpoints only) |
+| `balances_margin_loan_amount` | number \| null | `balances.margin_loan_amount` — **not** from `/accounts/balance/get`; populated only via `/investments/holdings/get` enrichment (investment accounts only; nullable otherwise) |
 
 **Query patterns:**
 - Current state: `WHERE user_id = ? AND synced_at = (SELECT MAX(synced_at) FROM plaid_accounts WHERE user_id = ?)`
@@ -1055,8 +1057,9 @@ Returns current investment positions for investment-type accounts.
 
 **Product:** Investments
 **Account scope:** Investment-type accounts only
-**Balance freshness:** Cached; `accounts[]` includes `balances.margin_loan_amount`
+**Balance freshness:** Cached (~daily after market close); `accounts[]` includes `balances.margin_loan_amount`
 **Maps to:** `plaid_investment_holdings`, `plaid_investment_securities`; investment `accounts[]` enriches `plaid_accounts.balances_margin_loan_amount`
+**Sync schedule:** Post-market daily job per [investment-account-apis.md](../../design-api/examples/investment-account/investment-account-apis.md#post-v1plaidsyncinvestment-holdings); optional v2 `DEFAULT_UPDATE` / `HOLDINGS` webhook trigger
 
 ### Request fields
 

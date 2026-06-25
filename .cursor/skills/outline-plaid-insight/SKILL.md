@@ -18,6 +18,7 @@ Produce a concise data spec for a financial insight: required Plaid tables/colum
 | [plaid-api-schema.md](plaid-api-schema.md) | Hybrid datatable + Plaid API spec reference (Account APIs overview, endpoint fields) — read before drafting |
 | [insight-types.md](insight-types.md) | Taxonomy of insight patterns (snapshot, chart, recurring, top N, etc.) |
 | [examples/](examples/README.md) | One `.md` per finalized insight — add every new insight here |
+| [design-api](../design-api/SKILL.md) | API design — sync/read routes, request/response contracts, client composition |
 
 ## Workflow
 
@@ -46,7 +47,7 @@ Ask only what is ambiguous:
 | **Comparison** | vs prior month/year, none | Extra date windows |
 | **Null / missing data** | Exclude, fallback, zero | Filter rules |
 
-**Defaults** (only if user declines to specify): latest snapshot for balances; current calendar month for spending; exclude `pending = true` and `removed = true`; primary category for spend grouping.
+**Defaults** (only if user declines to specify): latest snapshot for balances; `trailing_1y` for charts; current calendar month for spending; exclude `pending = true` and `removed = true`; primary category for spend grouping.
 
 ## Output template
 
@@ -68,6 +69,12 @@ Ask only what is ambiguous:
 
 **Input:** Short filters, scope, and joins.
 
+**Parameters** (when the insight accepts caller input):
+
+| Parameter | Type | Default | Notes / options |
+|---|---|---|---|
+| `param` | type | default | Allowed values, validation, or behavior notes |
+
 ### Calculation / analysis
 
 1. **Step name**
@@ -75,8 +82,12 @@ Ask only what is ambiguous:
    - Detail
 2. **Next step**
    - Detail
+3. **Format output**
+   - Apply [output formatting](#output-formatting) to all monetary and fraction-percent fields
 
 ### Data output
+
+**Formatting:** Dollar fields — 2 dp; fraction percent fields — 3 dp ([output formatting](#output-formatting)).
 
 | Field | Type | Description |
 |---|---|---|
@@ -100,6 +111,18 @@ Keep specs under ~60 lines unless the insight is complex.
 | Display names | Prefer `merchant_name` over `name` for transactions |
 | Nullable fields | Document exclude vs fallback (`balances_available`, `cost_basis`, `institution_value`) |
 
+## Output formatting
+
+Round only when serializing output — keep full precision during calculation.
+
+| Output type | Rule | Notes |
+|---|---|---|
+| Dollar / monetary | 2 decimal places | Any field representing USD (balances, amounts, values, returns in $) |
+| Fraction percent | 3 decimal places | Fields stored as 0–1 (e.g. `0.035` = 3.5%); not display `%` strings |
+| Excluded | No rounding | Counts, ranks, config constants, share `quantity`, dates |
+
+Apply to every emitted number in **Data output** tables. When drafting new specs, add a final calculation step: **Format output** — apply output formatting to all monetary and fraction-percent fields.
+
 ## Rollup convention
 
 When output has both detail rows and totals (e.g. accounts + net worth, categories + month total), **derive totals from detail rows** — do not compute totals independently.
@@ -116,17 +139,16 @@ Grouped by domain. Full index: [examples/README.md](examples/README.md).
 
 | Insight | File | Analysis pattern |
 |---|---|---|
-| Net worth snapshot | [net-worth-snapshot.md](examples/net-worth/net-worth-snapshot.md) | Snapshot |
-| Net worth balance chart | [net-worth-balance-chart.md](examples/net-worth/net-worth-balance-chart.md) | Historical chart |
-| Assets / liabilities bar | [assets-liabilities-bar.md](examples/net-worth/assets-liabilities-bar.md) | Snapshot + composition |
 | Cash account detail | [cash-account-detail.md](examples/net-worth/cash-account-detail.md) | Snapshot + composite |
 | Overview dashboard | [overview-dashboard.md](examples/net-worth/overview-dashboard.md) | Composite |
+
+Net worth chart, snapshot, and bar APIs → [design-api net worth APIs](../design-api/examples/net-worth/net-worth-apis.md).
 
 ### Cash flow
 
 | Insight | File | Analysis pattern |
 |---|---|---|
-| Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) | Period aggregation |
+| Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) | Period aggregation + Top N |
 | Recurring transactions | [recurring-transactions.md](examples/cash-flow/recurring-transactions.md) | Recurring detection |
 | Top 5 biggest purchases | [top-5-biggest-purchases.md](examples/cash-flow/top-5-biggest-purchases.md) | Top N ranking |
 | Cash inflow and outflow chart | [cash-inflow-outflow-chart.md](examples/cash-flow/cash-inflow-outflow-chart.md) | Period aggregation |
@@ -135,11 +157,11 @@ Grouped by domain. Full index: [examples/README.md](examples/README.md).
 
 | Insight | File | Analysis pattern |
 |---|---|---|
-| Top 5 holdings | [top-5-holdings.md](examples/investment-account/top-5-holdings.md) | Snapshot + top N |
+| Holdings by value | [holdings-by-value.md](examples/investment-account/holdings-by-value.md) | Snapshot |
 | Asset allocation | [asset-allocation.md](examples/investment-account/asset-allocation.md) | Snapshot + composition |
 | Investment accounts by institution | [investment-accounts-by-institution.md](examples/investment-account/investment-accounts-by-institution.md) | Snapshot |
 | Recurring investments | [recurring-investments.md](examples/investment-account/recurring-investments.md) | Recurring detection |
-| Investment performance chart | [investment-performance-chart.md](examples/investment-account/investment-performance-chart.md) | Historical chart |
+| Investment performance chart | [investment-performance-chart.md](examples/investment-account/investment-performance-chart.md) | Historical chart (wrapper) |
 | Investment account detail | [investment-account-detail.md](examples/investment-account/investment-account-detail.md) | Composite |
 
 ### Alerts

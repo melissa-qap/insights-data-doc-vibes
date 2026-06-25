@@ -1,8 +1,8 @@
-# Top 5 holdings
+# Holdings by value
 
 ### Description
 
-Shows the user's five largest investment positions by market value across all linked investment accounts, with a per-account breakdown under each holding.
+Shows all investment positions merged by security and sorted by total market value across linked investment accounts as of the latest holdings snapshot. When the same security appears in multiple accounts, market value is summed into one row.
 
 ### Required input data
 
@@ -12,7 +12,6 @@ Shows the user's five largest investment positions by market value across all li
 |---|---|
 | `user_id` | User scope |
 | `account_id` | Account identifier — filter to investment accounts |
-| `name` | Account display name — used in per-account breakdown |
 | `type` | Account type — must be `investment` |
 | `synced_at` | Snapshot timestamp — align with holdings sync |
 
@@ -26,7 +25,7 @@ Shows the user's five largest investment positions by market value across all li
 | `account_id` | Investment account holding the position |
 | `security_id` | Links to security metadata |
 | `quantity` | Shares/units held |
-| `institution_value` | Current market value — used for ranking |
+| `institution_value` | Current market value — used for sorting |
 | `synced_at` | Snapshot timestamp — must match securities join |
 
 **Input:** `user_id = ?`. Latest snapshot (same `synced_at` as `plaid_accounts`). `account_id` in investment account list. Exclude rows where `institution_value` IS NULL.
@@ -39,7 +38,6 @@ Shows the user's five largest investment positions by market value across all li
 | `security_id` | Join key to holdings |
 | `name` | Security display name |
 | `ticker_symbol` | Ticker for display |
-| `type` | Security type — one of 9 Plaid types; see [enum_investment_security_type](../../plaid-api-schema.md#enum_investment_security_type) |
 | `synced_at` | Must match holdings `synced_at` on join |
 
 **Input:** `user_id = ?`. Latest snapshot. Join to holdings on `security_id` + `synced_at`.
@@ -53,28 +51,26 @@ Shows the user's five largest investment positions by market value across all li
 3. **Load holdings**
    - `plaid_investment_holdings` for those accounts at that `synced_at`
    - Join `plaid_investment_securities` on `security_id` + `synced_at`
-4. **Build per-account rows**
-   - For each holding row: `{ account_id, account_name, value }`
-   - `value = institution_value`
-   - `account_name` from `plaid_accounts.name`
-5. **Aggregate by security**
+4. **Aggregate by security**
    - Group by `security_id`
-   - Collect account rows into `accounts[]`
-   - Derive `total_value` = sum of `accounts[].value` (do not compute independently)
-6. **Rank**
-   - Sort securities by `total_value` descending
-   - Take top 5
-7. **Sort accounts within each holding**
-   - Order `accounts` by `value` descending (largest position first)
-8. **Build holdings list**
-   - `{ rank, security_id, name, ticker_symbol, total_value, security_type, accounts }` for ranks 1–5
-   - Use security `name` from `plaid_investment_securities`
-   - Fall back to `ticker_symbol` if null
+   - `total_value` = sum of `institution_value` across all investment accounts for that security
+   - Attach `name` and `ticker_symbol` from `plaid_investment_securities`; fall back to `ticker_symbol` if `name` is null
+5. **Sort**
+   - Sort all securities by `total_value` descending
+6. **Build holdings list**
+   - `{ security_id, ticker_symbol, name, total_value }` for each security
+7. **Format output**
+   - Apply [output formatting](../../SKILL.md#output-formatting): round `total_value` to 2 dp
 
 ### Data output
 
+**Formatting:** Dollar fields — 2 dp ([SKILL.md](../../SKILL.md#output-formatting)).
+
 | Field | Type | Description |
 |---|---|---|
-| `holdings` | array | Top 5 positions: `{ rank, security_id, name, ticker_symbol, total_value, security_type, accounts }` — ordered by `rank` (1 = largest) |
-| `holdings[].accounts` | array | Per-account breakdown: `{ account_id, account_name, value }` — sorted by `value` descending; sums to `total_value` |
+| `holdings` | array | `{ security_id, ticker_symbol, name, total_value }` — sorted by `total_value` descending |
+| `holdings[].security_id` | string | Plaid security identifier |
+| `holdings[].ticker_symbol` | string | Ticker for display |
+| `holdings[].name` | string | Security display name |
+| `holdings[].total_value` | number | Market value summed across all investment accounts |
 | `as_of` | timestamp | `synced_at` of the snapshot used |

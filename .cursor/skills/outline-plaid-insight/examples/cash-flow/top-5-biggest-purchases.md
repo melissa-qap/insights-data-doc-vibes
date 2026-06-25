@@ -62,8 +62,12 @@ Uses [cash flow core](cash-flow-core.md) transaction table.
 10. **Optional period total**
     - If surfacing total spend in the window, derive as sum of all eligible transactions (not just top 5)
     - Do not compute independently of the filtered transaction set
+11. **Format output**
+    - Apply [output formatting](../../SKILL.md#output-formatting): round all monetary fields (`amount`, `period_total_spend`) to 2 dp
 
 ### Data output
+
+**Formatting:** Dollar fields — 2 dp ([SKILL.md](../../SKILL.md#output-formatting)).
 
 | Field | Type | Description |
 |---|---|---|

@@ -2,7 +2,7 @@
 
 ### Description
 
-Single depository account header, available balance and subtype, and recent posted transactions. Scoped to one `account_id` where `type = depository`.
+Single depository account header, available balance and subtype, and recent posted transactions. Scoped to one `account_id` where `type = depository`. Header balance and metadata from `GET /v1/account-balance?account_ids[]=<id>` ([net worth APIs](../../../design-api/examples/net-worth/net-worth-apis.md#get-v1account-balance)); `balances_available` and transactions from separate endpoints.
 
 ### Required input data
 
@@ -36,9 +36,9 @@ Single depository account header, available balance and subtype, and recent post
 
 **Parameters:**
 
-| Parameter | Default |
-|---|---|
-| `transaction_limit` | 20 |
+| Parameter | Type | Default | Notes / options |
+|---|---|---|---|
+| `transaction_limit` | integer | 20 | Max transactions returned |
 
 ### Calculation / analysis
 
@@ -47,8 +47,12 @@ Single depository account header, available balance and subtype, and recent post
 3. **Info block** — `balances_available`, formatted `subtype`
 4. **Account owner** — **Not available in current Plaid schema.** Omit from output.
 5. **Transactions** — sort by `date` desc; cap at `transaction_limit`; `display_name = COALESCE(merchant_name, name)`
+6. **Format output**
+   - Apply [output formatting](../../SKILL.md#output-formatting): round monetary fields (`balances_available`, `transactions[].amount`) to 2 dp
 
 ### Data output
+
+**Formatting:** Dollar fields — 2 dp ([SKILL.md](../../SKILL.md#output-formatting)).
 
 | Field | Type | Description |
 |---|---|---|

@@ -2,7 +2,7 @@
 
 ### Description
 
-Shows monthly money coming in vs going out over the trailing 24 months on linked depository and credit accounts, with net cash flow per month so users can see whether they ran a surplus or deficit each month.
+Shows monthly money coming in vs going out over the trailing 6 months on linked depository and credit accounts, with net cash flow per month so users can see whether they ran a surplus or deficit each month.
 
 Uses [cash flow core](cash-flow-core.md) transaction table.
 
@@ -27,7 +27,7 @@ Uses [cash flow core](cash-flow-core.md) transaction table.
 1. **Load transaction table** — [cash flow core](cash-flow-core.md) for `user_id`
 2. **Month window**
    - `window_end` = calendar date of `MAX(date)` on loaded table (or lightweight pre-query)
-   - `window_start` = first day of the calendar month that is 23 months before `window_end`'s month (24 calendar months inclusive, e.g. Jun 2024–May 2026 when latest transaction is in May 2026)
+   - `window_start` = first day of the calendar month that is 5 months before `window_end`'s month (6 calendar months inclusive, e.g. Dec 2025–May 2026 when latest transaction is in May 2026)
 3. **Account scope**
    - Keep rows where `account_type` in (`depository`, `credit`)
 4. **Filter by timeframe**
@@ -38,30 +38,27 @@ Uses [cash flow core](cash-flow-core.md) transaction table.
 6. **Per month**
    - Derive `month` as `YYYY-MM` from `date`
    - For each month:
-     - `window_start` = first calendar day of `month`
-     - `window_end` = last calendar day of `month`; when `month` is the same calendar month as top-level `window_end`, use top-level `window_end` instead (partial latest month)
+     - `start_date` = first calendar day of `month`
+     - `end_date` = last calendar day of `month`; when `month` is the same calendar month as top-level `window_end`, use top-level `window_end` instead (partial latest month)
      - `cash_inflow` = sum of `ABS(amount)` where `amount < 0` (positive magnitude for upward bar)
      - `cash_outflow` = −sum of `amount` where `amount > 0` (negative magnitude for downward bar)
      - `net_cash_flow` = `cash_inflow + cash_outflow` (derived from bar values; equals −sum of `amount` for the month)
 7. **Build `months`**
-   - One object per month in the window: `{ month, window_start, window_end, cash_inflow, cash_outflow, net_cash_flow }`
-   - Include months with zero activity (all cash fields `0`; still set `window_start` / `window_end` from `month`)
+   - One object per month in the window: `{ month, start_date, end_date, cash_inflow, cash_outflow, net_cash_flow }`
+   - Include months with zero activity (all cash fields `0`; still set `start_date` / `end_date` from `month`)
    - Sort ascending by `month`
-8. **Derive chart bounds from `months`**
-   - Do not compute independently
-   - `value_min` = minimum of `cash_outflow` and `net_cash_flow` across all months; omit if `months` is empty
-   - `value_max` = maximum of `cash_inflow` and `net_cash_flow` across all months; omit if `months` is empty
-9. **`as_of`**
+8. **`as_of`**
    - `window_end`
+9. **Format output**
+   - Apply [output formatting](../../SKILL.md#output-formatting): round all monetary fields (`cash_inflow`, `cash_outflow`, `net_cash_flow`) to 2 dp
 
 ### Data output
 
+**Formatting:** Dollar fields — 2 dp ([SKILL.md](../../SKILL.md#output-formatting)).
+
 | Field | Type | Description |
 |---|---|---|
-| `timeframe` | string | `"trailing_24m"` |
-| `window_start` | date | First day of earliest month in series |
-| `window_end` | date | Last day of latest month in series |
-| `months` | array | Chart series: up to 24 `{ month, window_start, window_end, cash_inflow, cash_outflow, net_cash_flow }`, sorted ascending by `month` |
-| `value_min` | number | Scale floor — derived from all `months` (stable across viewport slices) |
-| `value_max` | number | Scale ceiling — derived from all `months` (stable across viewport slices) |
-| `as_of` | date | Same as `window_end` |
+| `months` | array | Chart series: up to 6 `{ month, start_date, end_date, cash_inflow, cash_outflow, net_cash_flow }`, sorted ascending by `month` |
+| `as_of` | date | Latest transaction date on scoped, eligible rows |
+
+**Date scope:** Each `months[]` entry carries its own `start_date` / `end_date` for that bucket — use these for drill-down or per-bar filtering.

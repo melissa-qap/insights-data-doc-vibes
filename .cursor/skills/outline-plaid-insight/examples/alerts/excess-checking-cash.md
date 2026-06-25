@@ -54,7 +54,7 @@ Flags when the user's combined **checking** balance exceeds a recommended cushio
    - `total_checking_balance` = sum of `balance` (derive from detail rows only)
 2. **Spend window**
    - `spend_window_end` = today
-   - `spend_window_start` = today − 3 calendar months (same rolling style as [recurring transactions](../cash-flow/recurring-transactions.md) display window)
+   - `spend_window_start` = today − 3 calendar months
 3. **Spend scope**
    - Depository + credit `account_id` values from latest accounts where `type` in (`depository`, `credit`)
 4. **Eligible spend**
@@ -70,17 +70,20 @@ Flags when the user's combined **checking** balance exceeds a recommended cushio
    - `0.15`
 8. **`recommended_minimum`**
    - `monthly_avg_spend * (1 + buffer_pct)` (= × 1.15)
-   - Round only at presentation layer if needed
 9. **`excess_cash`**
    - `max(0, total_checking_balance - recommended_minimum)`
 10. **`has_excess`**
     - `excess_cash > 0`
 11. **`as_of`**
     - `synced_at` from the checking snapshot (MAX across included checking rows)
+12. **Format output**
+    - Apply [output formatting](../../SKILL.md#output-formatting): round all monetary fields (`balance`, `total_checking_balance`, `recommended_minimum`, `monthly_avg_spend`, `excess_cash`, `total_spend_3mo`) to 2 dp; leave `buffer_pct` as config constant (no rounding)
 
 **Rollup rule:** `total_checking_balance` must equal sum of `checking_accounts[].balance`.
 
 ### Data output
+
+**Formatting:** Dollar fields — 2 dp ([SKILL.md](../../SKILL.md#output-formatting)); `buffer_pct` excluded (config constant).
 
 | Field | Type | Description |
 |---|---|---|

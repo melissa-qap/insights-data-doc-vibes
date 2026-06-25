@@ -33,23 +33,23 @@ One insight usually combines **one analysis pattern** + **one domain**.
 | **Time** | Latest snapshot per user (`synced_at = MAX`) — via [net-worth-core](examples/net-worth/net-worth-core.md) `resolve_accounts_as_of` at `MAX(synced_at)` |
 | **Aggregation** | Per account, per security, or portfolio-wide sum |
 | **Output** | Scalar totals + array of detail rows |
-| **Shared core** | [net-worth-core.md](examples/net-worth/net-worth-core.md) — `compute_net_worth(..., include_groups = true)` |
+| **Shared core** | [net-worth-core.md](examples/net-worth/net-worth-core.md) — `resolve_accounts_as_of` + `compute_net_worth`; account list via [GET /v1/account-balance](../../design-api/examples/net-worth/net-worth-apis.md#get-v1account-balance) (client sums by `group`) |
 
 **Examples**
 
 | Insight | File |
 |---|---|
-| Net worth snapshot | [net-worth-snapshot.md](examples/net-worth/net-worth-snapshot.md) |
-| Top 5 holdings | [top-5-holdings.md](examples/investment-account/top-5-holdings.md) |
+| Holdings by value | [holdings-by-value.md](examples/investment-account/holdings-by-value.md) |
 | Asset allocation | [asset-allocation.md](examples/investment-account/asset-allocation.md) |
 | Investment accounts by institution | [investment-accounts-by-institution.md](examples/investment-account/investment-accounts-by-institution.md) |
 
 **Variants you can build**
 
-- Single-account balance snapshot (checking + savings roll-up)
+- Net worth account list — [GET /v1/account-balance](../../design-api/examples/net-worth/net-worth-apis.md#get-v1account-balance) returns flat `accounts[]`; client groups by `group` and sums `balance` for section subtotals
+- Single-account balance — `GET /v1/account-balance?account_ids[]=<id>`
 - Excess checking cash vs recommended minimum — [excess-checking-cash.md](examples/alerts/excess-checking-cash.md)
 - Liabilities-only snapshot (credit cards + loans)
-- Full holdings list (same as top holdings without the top-5 cap)
+- Top N holdings (configurable cap on [holdings by value](examples/investment-account/holdings-by-value.md))
 - Cash vs invested split across investment accounts
 
 ---
@@ -58,27 +58,28 @@ One insight usually combines **one analysis pattern** + **one domain**.
 
 **Question:** How did a balance or total change over a selected period?
 
-**Data shape:** Ordered `{ date, value }` points; optional min/max for chart axis; parameterized `timeframe`.
+**Data shape:** Ordered `{ date, value }` points; parameterized `timeframe`.
 
 | Aspect | Typical approach |
 |---|---|
 | **Primary tables** | `plaid_accounts` (retain all historical `synced_at` rows, not latest-only) |
 | **Time** | Calendar day series; point-in-time account state per day (carry forward between syncs) |
-| **Parameters** | `trailing_1m`, `trailing_6m`, `ytd`, `trailing_1y`, `all_time` |
-| **Output** | `points[]`, `window_start`, `window_end`, optional `value_min` / `value_max` |
-| **Shared core** | [net-worth-core.md](examples/net-worth/net-worth-core.md) — daily `resolve_accounts_as_of` + `compute_net_worth(..., include_groups = false)` per day |
+| **Parameters** | `trailing_1m`, `trailing_3m`, `ytd`, `trailing_1y`, `all_time` — default `trailing_1y` |
+| **Output** | `points[]`; series range from first/last point dates |
+| **Shared core** | [net-worth-core.md](examples/net-worth/net-worth-core.md) — daily `resolve_accounts_as_of` + `compute_net_worth` per day; canonical route: [GET /v1/performance-history](../../design-api/examples/net-worth/net-worth-apis.md#get-v1performance-history) |
 
 **Examples**
 
-| Insight | File |
-|---|---|
-| Net worth balance chart | [net-worth-balance-chart.md](examples/net-worth/net-worth-balance-chart.md) |
+| Insight | File | Role |
+|---|---|---|
+| Net worth performance chart | [net-worth-apis.md](../../design-api/examples/net-worth/net-worth-apis.md) | `GET /v1/performance-history` — net worth mode |
+| Investment performance chart | [investment-performance-chart.md](examples/investment-account/investment-performance-chart.md) | Client wrapper — all investment `account_ids` |
 
 **Variants you can build**
 
 - Total assets or total liabilities over time (same machinery, different roll-up)
-- Single-account balance history
-- Investment portfolio value over time (holdings history if retained per `synced_at`)
+- Single-account balance history — `account_ids: [id]` on performance history chart
+- Multi-account subset — `account_ids: [...]` with signed rollup
 - Spending or income cumulative line (transaction-derived, not balance snapshots)
 
 ---
@@ -87,15 +88,15 @@ One insight usually combines **one analysis pattern** + **one domain**.
 
 **Question:** How much happened in each time bucket, broken down by a dimension (category, merchant, account)?
 
-**Data shape:** Flat rows keyed by `period` + `dimension`; period totals derived from rows.
+**Data shape:** Period picker metadata plus dimension breakdown for the selected period; period totals derived from dimension rows.
 
 | Aspect | Typical approach |
 |---|---|
 | **Primary tables** | `plaid_transactions` |
-| **Time** | Up to trailing 24 calendar months, floored at earliest in-scope transaction (or single month / week / quarter) from transaction `date` |
+| **Time** | Default trailing 12 calendar months (`trailing_1y`); up to 24 calendar months, floored at earliest in-scope transaction (or single month / week / quarter) from transaction `date` |
 | **Dimension** | `personal_finance_category_primary`, merchant, account, etc. |
 | **Filters** | Exclude pending, removed, transfers/income/loan payments as needed; net refunds into category |
-| **Output** | `months[]` + sparse `rows[]` + `month_totals[]` (or `period_totals[]`); chart series use `months[]` with metric fields |
+| **Output** | `month` param + top-level `categories[]` + `months[]` as `string[]` (`YYYY-MM`) for picker insights; chart series use `months[]` as objects with metric fields (or `period_totals[]` for chart-only insights) |
 | **Shared core** | [cash-flow-core.md](examples/cash-flow/cash-flow-core.md) — transactions joined to `account_type`; callers own scope, timeframe, and eligibility |
 
 **Examples**
@@ -119,7 +120,7 @@ One insight usually combines **one analysis pattern** + **one domain**.
 
 **Question:** What share of a total belongs to each class or bucket?
 
-**Data shape:** Classes with `value`, `percent`, and optional holdings drill-down; `total` = sum of parts; percents from total.
+**Data shape:** Classes with `value`, `percent`, and optional holdings drill-down; `total` = sum of parts; percents from total. `value` fields — 2 dp; `percent` fractions — 3 dp (see [SKILL.md output formatting](SKILL.md#output-formatting)).
 
 | Aspect | Typical approach |
 |---|---|
@@ -132,10 +133,11 @@ One insight usually combines **one analysis pattern** + **one domain**.
 | Insight | File |
 |---|---|
 | Asset allocation | [asset-allocation.md](examples/investment-account/asset-allocation.md) |
-| Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) *(share-of-month view)* |
+| Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) *(share-of-month view via capped `categories[]` — top 5 + `OTHER` on selected month)* |
 
 **Variants you can build**
 
+- Assets vs liabilities stacked bar — [GET /v1/assets-liabilities](../../design-api/examples/net-worth/net-worth-apis.md#get-v1assets-liabilities)
 - Sector or geography allocation (needs enrichment beyond Plaid)
 - Account-type mix (% in 401k vs brokerage vs IRA)
 - Spend mix for a single month (same data as monthly-by-category)
@@ -160,11 +162,12 @@ One insight usually combines **one analysis pattern** + **one domain**.
 
 | Insight | File |
 |---|---|
-| Top 5 holdings | [top-5-holdings.md](examples/investment-account/top-5-holdings.md) |
+| Top 5 biggest purchases | [top-5-biggest-purchases.md](examples/cash-flow/top-5-biggest-purchases.md) |
+| Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) |
 
 **Variants you can build**
 
-- Top spending categories (month or trailing 3 months)
+- Top N holdings (cap sorted list from [holdings by value](examples/investment-account/holdings-by-value.md))
 - Top individual purchases (trailing 30 days) — [top-5-biggest-purchases.md](examples/cash-flow/top-5-biggest-purchases.md)
 - Top merchants by spend
 - Top gainers/losers *(blocked or approximate without cost basis / historical prices)*
@@ -176,15 +179,15 @@ One insight usually combines **one analysis pattern** + **one domain**.
 
 **Question:** What charges or contributions happen on a predictable schedule?
 
-**Data shape:** Flat list of detected patterns grouped into product buckets (`bills`, `income`, `subscriptions`; `income` = `INCOME`; `bills` = `RENT_AND_UTILITIES` or `LOAN_PAYMENTS`; `subscriptions` = all other recurring outflows including uncategorized): merchant or security, frequency, typical amount, last occurrence. **Detection lookback** loads the last 24 months of transactions (required for annual and quarterly cadences); **6-month display window** (`window_start` / `window_end`) is metadata for the display window only.
+**Data shape:** Flat list of detected patterns grouped into product buckets (`bills`, `income`, `subscriptions`, `transfers`, `other_inflow`; `income` = inflow + `INCOME`; `transfers` = `TRANSFER_IN` or `TRANSFER_OUT`; `bills` = outflow + `RENT_AND_UTILITIES`, `LOAN_PAYMENTS`, `GENERAL_SERVICES`, `GOVERNMENT_AND_NON_PROFIT`, or `BANK_FEES`; `subscriptions` = all other recurring outflows including uncategorized; `other_inflow` = remaining inflows): merchant or security, frequency, typical amount, last occurrence, projected `next_date`, `occurrences[]` (actual last 3 calendar months + projected next 6 by default), and `account_mask`. Uses all available transaction history (no detection lookback cap). **Upcoming tab** — client filters `next_date >= today` or uses projected entries in `occurrences[]`.
 
 | Aspect | Typical approach |
 |---|---|
 | **Primary tables** | `plaid_transactions` (spend/income) or `plaid_investment_transactions` (invest) |
-| **Detection** | `detection_lookback_start` = today − 24 months; dual eligibility paths for outflow and inflow; group by merchant or account+security; ≥2 occurrences; median interval → frequency bucket; amount consistency (±20%); active filter from `last_date` |
-| **Classification** | Assign `group`: `income` when `personal_finance_category_primary = INCOME`; `bills` when primary is `RENT_AND_UTILITIES` or `LOAN_PAYMENTS`; `subscriptions` for all remaining outflows including uncategorized |
-| **Frequencies** | Weekly, biweekly, semi-monthly, monthly, quarterly, annual |
-| **Output** | `recurrences[]`, `by_group[]`, `by_account[]`, `detection_lookback_start`, `window_start`, `window_end` |
+| **Detection** | Full cash-flow-core table (no date lower bound, no upfront category/account/amount exclusions); set `direction` from amount sign; group by merchant or account+security; ≥2 occurrences; `median_gap_days` → frequency bucket; amount consistency (±20%); active filter from `last_date`; frequency-aware `next_date` projection; build `occurrences[]` timeline (actual + projected) |
+| **Classification** | Assign `group` after detection from `direction` + category: `income`, `transfers`, `bills`, `subscriptions`, `other_inflow` (see [recurring transactions](examples/cash-flow/recurring-transactions.md) step 8) |
+| **Frequencies** | Weekly, biweekly, monthly, annual |
+| **Output** | `as_of`, `history_start`, `projection_end`, `recurrences[]` (`next_date`, `occurrences[]`, `account_mask`, `median_gap_days`, …), `by_group[]`, `by_account[]` |
 | **Shared core** | [cash-flow-core.md](examples/cash-flow/cash-flow-core.md) — joined transaction table; callers apply scope, timeframe, and eligibility ([recurring transactions](examples/cash-flow/recurring-transactions.md), [late paycheck](examples/alerts/late-paycheck.md)) |
 
 **Examples**
@@ -212,16 +215,15 @@ Grouped by domain. Full index: [examples/README.md](examples/README.md).
 
 | Insight | Domain | Analysis pattern |
 |---|---|---|
-| Net worth snapshot | Net worth | Snapshot |
-| Top 5 holdings | Investment | Snapshot + top N |
+| Holdings by value | Investment | Snapshot |
 | Asset allocation | Investment | Snapshot + composition |
 | Investment accounts by institution | Investment | Snapshot |
-| Monthly spending by category | Cash flow | Period aggregation |
+| Monthly spending by category | Cash flow | Period aggregation + Top N |
 | Top 5 biggest purchases | Cash flow | Top N ranking |
 | Recurring transactions | Cash flow | Recurring detection |
 | Recurring investments | Investment | Recurring detection |
-| Net worth balance chart | Net worth | Historical chart |
-| Investment performance chart | Investment | Historical chart |
+| Net worth performance chart | Net worth | Historical chart — [design-api](../../design-api/examples/net-worth/net-worth-apis.md) |
+| Investment performance chart | Investment | Historical chart (wrapper) |
 | Cash inflow and outflow chart | Cash flow | Period aggregation |
 | Excess checking cash | Alerts | Snapshot |
 | Subscription price increase | Alerts | Recurring detection + change |
