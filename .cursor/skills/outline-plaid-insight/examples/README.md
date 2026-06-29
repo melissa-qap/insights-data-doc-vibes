@@ -35,7 +35,8 @@ Net worth read APIs → [design-api net worth APIs](../../design-api/examples/ne
 | Insight | File | Analysis pattern |
 |---|---|---|
 | Monthly spending by category | [monthly-spending-by-category.md](cash-flow/monthly-spending-by-category.md) | Period aggregation + Top N |
-| Recurring transactions | [recurring-transactions.md](cash-flow/recurring-transactions.md) | Recurring detection |
+| Recurring transactions (V1) | [recurring-transactions-v1.md](cash-flow/recurring-transactions-v1.md) | Recurring detection (Plaid API) |
+| Recurring transactions (V2) | [recurring-transactions.md](cash-flow/recurring-transactions.md) | Recurring detection (inferred) |
 | Top 5 biggest purchases | [top-5-biggest-purchases.md](cash-flow/top-5-biggest-purchases.md) | Top N ranking |
 | Cash inflow and outflow chart | [cash-inflow-outflow-chart.md](cash-flow/cash-inflow-outflow-chart.md) | Period aggregation |
 
@@ -52,7 +53,7 @@ Cash flow sync API → [design-api cash flow APIs](../../design-api/examples/cas
 | Investment performance chart | [investment-performance-chart.md](investment-account/investment-performance-chart.md) | Historical chart (wrapper) |
 | Investment account detail | [investment-account-detail.md](investment-account/investment-account-detail.md) | Composite |
 
-Investment account sync API → [design-api investment account APIs](../../design-api/examples/investment-account/investment-account-apis.md). Read endpoints not yet defined.
+Investment read APIs → [design-api investment account APIs](../../design-api/examples/investment-account/investment-account-apis.md#read-apis). Account list reuses `GET /v1/account-balance` (flat, no institution grouping); performance chart reuses `GET /v1/performance-history`.
 
 ### Alerts
 
@@ -67,7 +68,7 @@ Investment account sync API → [design-api investment account APIs](../../desig
 | Partial | Folder | Used by |
 |---|---|---|
 | Net worth core | [net-worth-core.md](net-worth/net-worth-core.md) | [Net worth APIs](../../design-api/examples/net-worth/net-worth-apis.md), [Overview dashboard](net-worth/overview-dashboard.md), [Investment performance chart](investment-account/investment-performance-chart.md), [Investment account APIs](../../design-api/examples/investment-account/investment-account-apis.md) |
-| Cash flow core | [cash-flow-core.md](cash-flow/cash-flow-core.md) | [Monthly spending by category](cash-flow/monthly-spending-by-category.md), [Cash inflow and outflow chart](cash-flow/cash-inflow-outflow-chart.md), [Recurring transactions](cash-flow/recurring-transactions.md), [Top 5 biggest purchases](cash-flow/top-5-biggest-purchases.md), [Late paycheck](alerts/late-paycheck.md) |
+| Cash flow core | [cash-flow-core.md](cash-flow/cash-flow-core.md) | [Monthly spending by category](cash-flow/monthly-spending-by-category.md), [Cash inflow and outflow chart](cash-flow/cash-inflow-outflow-chart.md), [Recurring transactions (V1)](cash-flow/recurring-transactions-v1.md), [Recurring transactions (V2)](cash-flow/recurring-transactions.md), [Top 5 biggest purchases](cash-flow/top-5-biggest-purchases.md), [Late paycheck](alerts/late-paycheck.md) |
 
 ## Template
 

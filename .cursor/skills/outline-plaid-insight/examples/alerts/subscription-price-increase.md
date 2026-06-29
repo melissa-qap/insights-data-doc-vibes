@@ -2,11 +2,11 @@
 
 ### Description
 
-Alerts when one or more **active recurring subscription-like charges** increase by **≥ 5%** compared to the median of prior charges at the same merchant. Subscription candidates come from [recurring transactions](../cash-flow/recurring-transactions.md) (`group = subscriptions`); per-occurrence transaction amounts are used for the price-change comparison (not `typical_amount`, which includes the latest charge).
+Alerts when one or more **active recurring subscription-like charges** increase by **≥ 5%** compared to the median of prior charges at the same merchant. Subscription candidates come from [recurring transactions (V1)](../cash-flow/recurring-transactions-v1.md) or [recurring transactions (V2)](../cash-flow/recurring-transactions.md) (`group = subscriptions`); per-occurrence transaction amounts are used for the price-change comparison (not `typical_amount`, which includes the latest charge).
 
 ### Required input data
 
-#### Upstream: [recurring transactions](../cash-flow/recurring-transactions.md)
+#### Upstream: [recurring transactions (V1)](../cash-flow/recurring-transactions-v1.md) or [recurring transactions (V2)](../cash-flow/recurring-transactions.md)
 
 Run recurring transactions for `user_id = ?`. Use its output:
 
@@ -65,9 +65,9 @@ Run recurring transactions for `user_id = ?`. Use its output:
 
 ### Notes
 
-- **Depends on [recurring transactions](../cash-flow/recurring-transactions.md)** for candidate detection; share implementation or cache `recurrences[]` rather than duplicating detection steps. Ignore `occurrences[]` on recurrence rows — this alert uses summary fields only.
+- **Depends on [recurring transactions (V1)](../cash-flow/recurring-transactions-v1.md) or [recurring transactions (V2)](../cash-flow/recurring-transactions.md)** for candidate detection; share implementation or cache `recurrences[]` rather than duplicating detection steps. Ignore `occurrences[]` on recurrence rows — this alert uses summary fields only.
 - **Do not use `typical_amount`** for increase detection — it is the median of all occurrences including the latest charge.
-- **Not available in current Plaid schema:** Plaid Recurring Transactions / streams — recurrence and subscription identity are inferred; patterns may be missed or mislabeled (same caveats as recurring transactions).
+- **Not available in current Plaid schema:** Subscription identity beyond stream/merchant grouping — patterns may be missed or mislabeled (same caveats as recurring transactions V1/V2).
 - **Merchant name drift** may split one subscription into multiple groups unless normalization is extended.
 - **Tax, promo, or prorated charges** can cause false positives despite the 5% threshold.
 - **No user-defined subscription list** — would need an extension preferences table.

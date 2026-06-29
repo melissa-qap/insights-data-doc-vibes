@@ -116,7 +116,7 @@ All read endpoints use [net worth core](../../../outline-plaid-insight/examples/
 | `period_return_pct` | number | Fraction (0–1); omit if start value ≤ 0 |
 | `as_of` | date | Last point date |
 
-- **Powers:** Net worth line chart + period change label; account-detail performance (pass `account_ids`); investment portfolio chart (pass investment `account_ids` — see [investment account APIs](../investment-account/investment-account-apis.md) and [investment performance chart](../../../outline-plaid-insight/examples/investment-account/investment-performance-chart.md))
+- **Powers:** Net worth line chart + period change label; account-detail performance (pass `account_ids`); investment portfolio chart (pass investment `account_ids` — see [investment account APIs § client composition](../investment-account/investment-account-apis.md#client-composition) and [investment performance chart](../../../outline-plaid-insight/examples/investment-account/investment-performance-chart.md))
 - **Invariants:** Net worth mode — `points[last].value` must equal `GET /v1/assets-liabilities` `net_worth` at same cutoff. Accounts mode (all investment IDs) — `points[last].value` must equal investment performance `end_value`.
 - **Notes:** Carry-forward between syncs; holding-period return (not TWR). **Not available:** benchmark overlay, TWR/MWR, holdings-based historical value.
 
@@ -147,7 +147,7 @@ All read endpoints use [net worth core](../../../outline-plaid-insight/examples/
 Server owns classification (`a_l`, `group`); client groups by `group` and sums `balance` for section headers. Do not re-derive `group` from `type`/`subtype` on the client.
 
 - **Client rollup** *(when no `account_ids` filter)* — section total for a group = sum of `balance` where `group` matches; portfolio net worth from rows = `sum(balance where a_l=asset) − sum(balance where a_l=liability)` — must equal `performance-history.points[last].value` and `assets-liabilities.net_worth` at same cutoff.
-- **Powers:** Account list (overview — client groups into Cash / Investment / Credit cards / Loans); account detail header/balance (`account_ids[]=<id>`); `account_ids` discovery for performance-history filter
+- **Powers:** Account list (overview — client groups into Cash / Investment / Credit cards / Loans); account detail header/balance (`account_ids[]=<id>`); `account_ids` discovery for performance-history filter; investment overview flat account list (filter `group = investment`, sort by `balance` desc — see [investment account APIs § client composition](../investment-account/investment-account-apis.md#client-composition))
 
 #### GET /v1/assets-liabilities
 

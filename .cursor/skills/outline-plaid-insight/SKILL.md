@@ -149,7 +149,8 @@ Net worth chart, snapshot, and bar APIs → [design-api net worth APIs](../desig
 | Insight | File | Analysis pattern |
 |---|---|---|
 | Monthly spending by category | [monthly-spending-by-category.md](examples/cash-flow/monthly-spending-by-category.md) | Period aggregation + Top N |
-| Recurring transactions | [recurring-transactions.md](examples/cash-flow/recurring-transactions.md) | Recurring detection |
+| Recurring transactions (V1) | [recurring-transactions-v1.md](examples/cash-flow/recurring-transactions-v1.md) | Recurring detection (Plaid API) |
+| Recurring transactions (V2) | [recurring-transactions.md](examples/cash-flow/recurring-transactions.md) | Recurring detection (inferred) |
 | Top 5 biggest purchases | [top-5-biggest-purchases.md](examples/cash-flow/top-5-biggest-purchases.md) | Top N ranking |
 | Cash inflow and outflow chart | [cash-inflow-outflow-chart.md](examples/cash-flow/cash-inflow-outflow-chart.md) | Period aggregation |
 

@@ -4,7 +4,7 @@
 
 Alerts when a **detected recurring paycheck** (stable `INCOME` inflow on depository accounts) is **≥ 3 calendar days past** its predicted next pay date with no matching deposit since the last occurrence. Each employer/payer source is evaluated independently.
 
-Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paycheck candidates can be sourced from [recurring transactions](../cash-flow/recurring-transactions.md) (`recurrences[]` where `group = 'income'`) or by re-running recurring transactions and filtering `group = 'income'`. This alert may still apply its own depository-only filter when evaluating lateness even though recurring detection is broader.
+Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paycheck candidates can be sourced from [recurring transactions (V1)](../cash-flow/recurring-transactions-v1.md) or [recurring transactions (V2)](../cash-flow/recurring-transactions.md) (`recurrences[]` where `group = 'income'`) — both expose the same output shape. This alert may still apply its own depository-only filter when evaluating lateness even though recurring detection is broader.
 
 ### Required input data
 
@@ -110,7 +110,7 @@ Uses [cash flow core](../cash-flow/cash-flow-core.md) transaction table. Paychec
 ### Notes
 
 - **Cadence inferred** from transaction history — same limitations as [recurring transactions](../cash-flow/recurring-transactions.md) (missed merges, merchant name drift, variable pay). Prefer consuming `recurrences[]` where `group = 'income'` from recurring transactions when available; use `next_date` and `median_gap_days` from those rows instead of recomputing `expected_next_date` in step 14. Ignore `occurrences[]` on recurrence rows — this alert uses summary fields only.
-- **Not available in current Plaid schema:** Plaid Recurring Transactions / payroll flags; user-defined pay schedule or employer list — would need extension preferences table.
+- **Not available in current Plaid schema:** Plaid payroll flags; user-defined pay schedule or employer list — would need extension preferences table. Upstream recurring detection may be [V1](../cash-flow/recurring-transactions-v1.md) (Plaid streams) or [V2](../cash-flow/recurring-transactions.md) (inferred).
 - **TRANSFER_IN payroll** (P2P or inter-account) may be missed when categorized as transfer rather than `INCOME`.
 - **Variable pay / bonuses** may fail the ±20% filter or split one employer into multiple payer groups.
 - **New job with < 3 deposits:** Excluded by minimum history to reduce false positives.

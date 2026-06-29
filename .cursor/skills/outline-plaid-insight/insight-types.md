@@ -183,18 +183,20 @@ One insight usually combines **one analysis pattern** + **one domain**.
 
 | Aspect | Typical approach |
 |---|---|
-| **Primary tables** | `plaid_transactions` (spend/income) or `plaid_investment_transactions` (invest) |
-| **Detection** | Full cash-flow-core table (no date lower bound, no upfront category/account/amount exclusions); set `direction` from amount sign; group by merchant or account+security; ≥2 occurrences; `median_gap_days` → frequency bucket; amount consistency (±20%); active filter from `last_date`; frequency-aware `next_date` projection; build `occurrences[]` timeline (actual + projected) |
-| **Classification** | Assign `group` after detection from `direction` + category: `income`, `transfers`, `bills`, `subscriptions`, `other_inflow` (see [recurring transactions](examples/cash-flow/recurring-transactions.md) step 8) |
-| **Frequencies** | Weekly, biweekly, monthly, annual |
-| **Output** | `as_of`, `history_start`, `projection_end`, `recurrences[]` (`next_date`, `occurrences[]`, `account_mask`, `median_gap_days`, …), `by_group[]`, `by_account[]` |
-| **Shared core** | [cash-flow-core.md](examples/cash-flow/cash-flow-core.md) — joined transaction table; callers apply scope, timeframe, and eligibility ([recurring transactions](examples/cash-flow/recurring-transactions.md), [late paycheck](examples/alerts/late-paycheck.md)) |
+| **Primary tables** | `plaid_recurring_streams` + `plaid_recurring_stream_transactions` (Plaid API — [V1](examples/cash-flow/recurring-transactions-v1.md)) or `plaid_transactions` (inferred — [V2](examples/cash-flow/recurring-transactions.md)) or `plaid_investment_transactions` (invest) |
+| **Detection (V2)** | Full cash-flow-core table (no date lower bound, no upfront category/account/amount exclusions); set `direction` from amount sign; group by merchant or account+security; ≥2 occurrences; `median_gap_days` → frequency bucket; amount consistency (±20%); active filter from `last_date`; frequency-aware `next_date` projection; build `occurrences[]` timeline (actual + projected) |
+| **Detection (V1)** | Load latest `plaid_recurring_streams` snapshot; filter `is_active`, exclude `TOMBSTONED` and `UNKNOWN` frequency; map Plaid fields to V2-shaped output; join `transaction_ids` for actual `occurrences[]`; project from `predicted_next_date` |
+| **Classification** | Assign `group` after detection from `direction` + category: `income`, `transfers`, `bills`, `subscriptions`, `other_inflow` (see [recurring transactions (V2)](examples/cash-flow/recurring-transactions.md) step 8; same rules in V1) |
+| **Frequencies** | V1: weekly, biweekly, semi_monthly, monthly, annual (Plaid). V2: weekly, biweekly, monthly, annual (inferred) |
+| **Output** | `as_of`, `history_start`, `projection_end`, `recurrences[]` (`next_date`, `occurrences[]`, `account_mask`, `median_gap_days`, …), `by_group[]`, `by_account[]` — same shape in V1 and V2 |
+| **Shared core** | V2: [cash-flow-core.md](examples/cash-flow/cash-flow-core.md). V1: `plaid_recurring_streams` + joins to `plaid_transactions` and `plaid_accounts` |
 
 **Examples**
 
 | Insight | File |
 |---|---|
-| Recurring transactions | [recurring-transactions.md](examples/cash-flow/recurring-transactions.md) |
+| Recurring transactions (V1) | [recurring-transactions-v1.md](examples/cash-flow/recurring-transactions-v1.md) |
+| Recurring transactions (V2) | [recurring-transactions.md](examples/cash-flow/recurring-transactions.md) |
 | Recurring investments | [recurring-investments.md](examples/investment-account/recurring-investments.md) |
 
 **Variants you can build**
@@ -205,7 +207,7 @@ One insight usually combines **one analysis pattern** + **one domain**.
 - Estimated monthly recurring total (rollup row derived from `by_group[]`, `by_account[]`, or `recurrences[]`)
 - Dormant recurrences (failed active filter — "used to pay X")
 
-**Schema note:** Plaid has no recurring-transaction flag in the datatables; patterns are **inferred**. Document limitations in the spec (missed merges, variable bills, merchant name drift).
+**Schema note:** V1 uses Plaid-detected streams (`plaid_recurring_streams` from `/transactions/recurring/get`). V2 infers patterns from `plaid_transactions` when the add-on is unavailable or broader account coverage is needed. Document limitations in each spec (missed merges, variable bills, merchant name drift for V2; account scope and stream status for V1).
 
 ---
 
@@ -220,7 +222,8 @@ Grouped by domain. Full index: [examples/README.md](examples/README.md).
 | Investment accounts by institution | Investment | Snapshot |
 | Monthly spending by category | Cash flow | Period aggregation + Top N |
 | Top 5 biggest purchases | Cash flow | Top N ranking |
-| Recurring transactions | Cash flow | Recurring detection |
+| Recurring transactions (V1) | Cash flow | Recurring detection (Plaid API) |
+| Recurring transactions (V2) | Cash flow | Recurring detection (inferred) |
 | Recurring investments | Investment | Recurring detection |
 | Net worth performance chart | Net worth | Historical chart — [design-api](../../design-api/examples/net-worth/net-worth-apis.md) |
 | Investment performance chart | Investment | Historical chart (wrapper) |

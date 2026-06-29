@@ -16,7 +16,7 @@ Hybrid reference: **datatable mappings** for insight queries plus **API field do
 | Accounts & balance | `/accounts/balance/get` | Real-time account balances via live institution call | Yes |
 | Transactions | `/transactions/sync` | Incremental transaction updates via cursor (recommended) | Yes |
 | Transactions | `/transactions/get` | Paginated transaction fetch (legacy) | No |
-| Transactions | `/transactions/recurring/get` | Plaid-detected recurring streams (subscriptions, bills, income) | No |
+| Transactions | `/transactions/recurring/get` | Plaid-detected recurring streams (subscriptions, bills, income) | Yes |
 | Transactions | `/transactions/refresh` | Force on-demand transaction refresh | No |
 | Transactions | `/categories/get` | Full Plaid transaction category taxonomy | No |
 | Transactions | `/transactions/enrich` | Enrich merchant/category on your own transaction data | No |
@@ -138,6 +138,7 @@ See [Plaid API coverage](#plaid-api-coverage) for the full product-area endpoint
 |---|---|
 | `/accounts/balance/get` (primary), `/accounts/get` (alternate) | `plaid_accounts` |
 | `/transactions/sync` | `plaid_transactions` |
+| `/transactions/recurring/get` | `plaid_recurring_streams`, `plaid_recurring_stream_transactions` |
 | `/investments/holdings/get` | `plaid_investment_holdings`, `plaid_investment_securities` |
 | `/liabilities/get` | `plaid_liabilities_credit`, `plaid_liabilities_student`, `plaid_liabilities_mortgage` |
 | *(extension)* | `plaid_items` |
@@ -158,8 +159,9 @@ Source: Plaid Item metadata at link time (e.g. from `/link/token/create` callbac
 | `institution_name` | string | Display name for the linked institution |
 | `institution_id` | string \| null | Optional Plaid institution ID (e.g. `ins_3`) |
 | `transactions_sync_cursor` | string \| null | Last `next_cursor` from `/transactions/sync` for this Item; `null` before first sync — server-managed, not client-supplied |
+| `recurring_streams_updated_at` | timestamp \| null | Copy of response `updated_datetime` from last successful `/transactions/recurring/get` for this Item |
 
-Used by [investment accounts by institution](examples/investment-account/investment-accounts-by-institution.md) to group accounts under institution labels. `item_id` alone is on every datatable row; institution names are not. `transactions_sync_cursor` is updated by `POST /v1/plaid/sync/transactions` — see [cash flow APIs](../../design-api/examples/cash-flow/cash-flow-apis.md).
+Used by [investment accounts by institution](examples/investment-account/investment-accounts-by-institution.md) to group accounts under institution labels. `item_id` alone is on every datatable row; institution names are not. `transactions_sync_cursor` is updated by `POST /v1/plaid/sync/transactions` — see [cash flow APIs](../../design-api/examples/cash-flow/cash-flow-apis.md). `recurring_streams_updated_at` is updated when `/transactions/recurring/get` is imported.
 
 ---
 
@@ -215,6 +217,61 @@ Source: `/transactions/sync` → `added[]`, `modified[]`, `removed[]`. One row p
 | `location_region` | string \| null | `location.region` |
 | `iso_currency_code` | string \| null | `iso_currency_code` |
 | `unofficial_currency_code` | string \| null | `unofficial_currency_code` |
+
+---
+
+### `plaid_recurring_streams`
+
+Source: `/transactions/recurring/get` → `inflow_streams[]` + `outflow_streams[]`. One row per stream per sync (retain history per `synced_at`; query latest snapshot).
+
+| Column | Type | Source field |
+|---|---|---|
+| `stream_id` | string | `stream_id` |
+| `direction` | string | Derived: `inflow` from `inflow_streams[]`, `outflow` from `outflow_streams[]` |
+| `account_id` | string | `account_id` |
+| `description` | string | `description` |
+| `merchant_name` | string \| null | `merchant_name` |
+| `first_date` | date | `first_date` |
+| `last_date` | date | `last_date` |
+| `predicted_next_date` | date \| null | `predicted_next_date` |
+| `frequency` | string | `frequency` — see [enum_recurring_stream_frequency](#enum_recurring_stream_frequency) |
+| `average_amount` | number | `average_amount.amount` (signed; use `ABS` in insight output) |
+| `average_amount_iso_currency_code` | string \| null | `average_amount.iso_currency_code` |
+| `average_amount_unofficial_currency_code` | string \| null | `average_amount.unofficial_currency_code` |
+| `last_amount` | number | `last_amount.amount` |
+| `last_amount_iso_currency_code` | string \| null | `last_amount.iso_currency_code` |
+| `last_amount_unofficial_currency_code` | string \| null | `last_amount.unofficial_currency_code` |
+| `is_active` | boolean | `is_active` |
+| `status` | string | `status` — see [enum_recurring_stream_status](#enum_recurring_stream_status) |
+| `is_user_modified` | boolean | `is_user_modified` (deprecated; always `false`) |
+| `category` | string \| null | Legacy `category` |
+| `category_id` | string \| null | Legacy `category_id` |
+| `personal_finance_category_primary` | string \| null | `personal_finance_category.primary` |
+| `personal_finance_category_detailed` | string \| null | `personal_finance_category.detailed` |
+| `personal_finance_category_confidence_level` | string \| null | `personal_finance_category.confidence_level` |
+| `personal_finance_category_version` | string \| null | `personal_finance_category.version` |
+
+**Query patterns:**
+- Current state: `WHERE user_id = ? AND synced_at = (SELECT MAX(synced_at) FROM plaid_recurring_streams WHERE user_id = ?)`
+- Join to `plaid_accounts` on `account_id` for display labels
+
+Used by [recurring transactions (V1)](examples/cash-flow/recurring-transactions-v1.md).
+
+---
+
+### `plaid_recurring_stream_transactions`
+
+Source: `/transactions/recurring/get` → `transaction_ids[]` on each stream. Child table for stream → transaction membership (enables SQL joins to `plaid_transactions`).
+
+| Column | Type | Source field |
+|---|---|---|
+| `stream_id` | string | Parent stream |
+| `transaction_id` | string | Entry in `transaction_ids[]` |
+| `sequence` | integer | 0-based index preserving Plaid sort order (posted date ascending) |
+
+**Query patterns:**
+- Join to `plaid_recurring_streams` on `stream_id` + matching `synced_at` (and `user_id`, `item_id`)
+- Join to `plaid_transactions` on `transaction_id` for occurrence dates and amounts
 
 ---
 
@@ -337,6 +394,8 @@ Lookup tables for enum-like datatable columns. One row per allowed value.
 | `plaid_transactions.personal_finance_category_primary` | [enum_pfc_primary](#enum_pfc_primary) |
 | `plaid_transactions.personal_finance_category_detailed` | [enum_pfc_detailed](#enum_pfc_detailed) |
 | `plaid_transactions.personal_finance_category_confidence_level` | [enum_pfc_confidence_level](#enum_pfc_confidence_level) |
+| `plaid_recurring_streams.frequency` | [enum_recurring_stream_frequency](#enum_recurring_stream_frequency) |
+| `plaid_recurring_streams.status` | [enum_recurring_stream_status](#enum_recurring_stream_status) |
 | `plaid_investment_securities.type` | [enum_investment_security_type](#enum_investment_security_type) |
 | *(API only)* `securities[].subtype` | [enum_investment_security_subtype](#enum_investment_security_subtype) |
 | `plaid_liabilities_student.loan_status_type` | [enum_loan_status_type](#enum_loan_status_type) |
@@ -743,6 +802,38 @@ Source: [Plaid Liabilities API](https://plaid.com/docs/api/products/liabilities/
 
 ---
 
+### enum_recurring_stream_frequency
+
+`plaid_recurring_streams.frequency` — cadence assigned by Plaid Recurring Transactions.
+
+| Value | Description |
+| --- | --- |
+| `UNKNOWN` | Does not fit a pre-defined frequency |
+| `WEEKLY` | Approximately every week |
+| `BIWEEKLY` | Approximately every 2 weeks |
+| `SEMI_MONTHLY` | Approximately twice per month (common for inflows) |
+| `MONTHLY` | Approximately every month |
+| `ANNUALLY` | Approximately every year |
+
+Source: [Plaid Recurring Transactions API](https://plaid.com/docs/api/products/transactions/#transactionsrecurringget)
+
+---
+
+### enum_recurring_stream_status
+
+`plaid_recurring_streams.status` — lifecycle status of a recurring stream.
+
+| Value | Description |
+| --- | --- |
+| `UNKNOWN` | Status not applicable |
+| `MATURE` | Stable cadence with at least 3 transactions (2 for annual) |
+| `EARLY_DETECTION` | New stream before mature-stream requirements are met |
+| `TOMBSTONED` | Previously early-detected stream with no transaction at next expected date |
+
+Source: [Plaid Recurring Transactions API](https://plaid.com/docs/api/products/transactions/#transactionsrecurringget)
+
+---
+
 ## API Field Reference
 
 Plaid response field documentation. Datatable column names map to these fields via underscore flattening (see [Data Tables](#data-tables)). Account endpoints reference the shared Account object defined below.
@@ -1048,6 +1139,72 @@ Same transaction and `accounts[]` fields as `/transactions/sync`. Also returns `
 
 - All new implementations should use `/transactions/sync`
 - Transaction fields map to `plaid_transactions` identically
+
+---
+
+## `/transactions/recurring/get`
+
+Fetch Plaid-detected recurring inflow and outflow transaction streams (subscriptions, bills, income).
+
+**Product:** Transactions (add-on — request access from Plaid)
+**Account scope:** Depository (checking/savings) and credit card accounts on the Item
+**Balance freshness:** N/A
+**Maps to:** `plaid_recurring_streams`, `plaid_recurring_stream_transactions`; `updated_datetime` → `plaid_items.recurring_streams_updated_at`
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `access_token` | string | yes | Item access token |
+| `account_ids` | string[] | no | Filter to specific accounts; omit to retrieve all active accounts on the Item |
+| `options.personal_finance_category_version` | string | no | `v1` or `v2` PFC taxonomy — see [enum_pfc_primary](#enum_pfc_primary) |
+
+### Response fields — top level
+
+| Field | Type | Notes |
+|---|---|---|
+| `inflow_streams[]` | array | Depository inflow streams — see TransactionStream below |
+| `outflow_streams[]` | array | Expense outflow streams — see TransactionStream below |
+| `updated_datetime` | string | ISO 8601 timestamp of last stream update for the Item |
+| `request_id` | string | Plaid request identifier |
+
+### Response fields — TransactionStream (`inflow_streams[]` / `outflow_streams[]`)
+
+| Field | Type | Notes |
+|---|---|---|
+| `stream_id` | string | Unique stream identifier |
+| `account_id` | string | Account this stream belongs to |
+| `description` | string | Stream description |
+| `merchant_name` | string \| null | Merchant name when available |
+| `first_date` | string | Earliest posted transaction date (YYYY-MM-DD) |
+| `last_date` | string | Latest posted transaction date (YYYY-MM-DD) |
+| `predicted_next_date` | string \| null | Predicted next payment date when predictable (YYYY-MM-DD) |
+| `frequency` | string | See [enum_recurring_stream_frequency](#enum_recurring_stream_frequency) |
+| `transaction_ids[]` | string[] | Plaid transaction IDs in the stream, sorted by posted date ascending |
+| `average_amount.amount` | number | Signed average amount (outflows positive, inflows negative) |
+| `average_amount.iso_currency_code` | string \| null | ISO-4217 currency |
+| `average_amount.unofficial_currency_code` | string \| null | Non-ISO currency when applicable |
+| `last_amount.amount` | number | Signed amount of most recent transaction |
+| `last_amount.iso_currency_code` | string \| null | ISO-4217 currency |
+| `last_amount.unofficial_currency_code` | string \| null | Non-ISO currency when applicable |
+| `is_active` | boolean | Whether the stream is still live |
+| `status` | string | See [enum_recurring_stream_status](#enum_recurring_stream_status) |
+| `is_user_modified` | boolean | Deprecated; always `false` |
+| `category` | string \| null | Legacy category |
+| `category_id` | string \| null | Legacy category ID |
+| `personal_finance_category.primary` | string \| null | See [enum_pfc_primary](#enum_pfc_primary) |
+| `personal_finance_category.detailed` | string \| null | See [enum_pfc_detailed](#enum_pfc_detailed) |
+| `personal_finance_category.confidence_level` | string \| null | See [enum_pfc_confidence_level](#enum_pfc_confidence_level) |
+| `personal_finance_category.version` | string \| null | `v1` or `v2` |
+
+### Notes
+
+- Requires Transactions product on the Item; call after historical transactions are complete (`historical_update_complete` on `SYNC_UPDATES_AVAILABLE` when using `/transactions/sync`)
+- Recommend `days_requested >= 180` at Link for best detection
+- Re-fetch on `RECURRING_TRANSACTIONS_UPDATE` webhook
+- `predicted_next_date` is null when Plaid cannot predict the next occurrence
+- Amounts follow transaction sign convention: outflows positive, inflows negative
+- Used by [recurring transactions (V1)](examples/cash-flow/recurring-transactions-v1.md)
 
 ---
 

@@ -1,4 +1,4 @@
-# Recurring transactions
+# Recurring transactions (V2)
 
 ### Description
 
@@ -124,7 +124,7 @@ Uses [cash flow core](cash-flow-core.md) transaction table.
 ### Notes
 
 - **Transaction history:** All stored transactions from cash-flow-core are used for detection (no lookback cap). Annual patterns still require ≥ 2 occurrences at the expected cadence in whatever history exists — patterns may still be missed when total history spans less than ~13 months. Cadences between monthly and annual (e.g. quarterly) are not detected.
-- **Not available in current Plaid schema:** Plaid Recurring Transactions / streams — recurrence is inferred from `plaid_transactions`; patterns may be missed or mislabeled.
+- **Plaid alternative:** [Recurring transactions (V1)](recurring-transactions-v1.md) uses Plaid-detected streams via `/transactions/recurring/get` when the Recurring Transactions add-on is available. V2 infers patterns from `plaid_transactions` when it is not.
 - **Account scope:** All account types present in `plaid_transactions` (depository, credit, student loan). Investment transactions are not in this table — see [recurring investments](../investment-account/recurring-investments.md).
 - **Classification:** `direction = 'inflow'` AND `category = 'INCOME'` → `group = income`. `category` in (`TRANSFER_IN`, `TRANSFER_OUT`) → `group = transfers`. `direction = 'outflow'` AND `RENT_AND_UTILITIES`, `LOAN_PAYMENTS`, `GENERAL_SERVICES`, `GOVERNMENT_AND_NON_PROFIT`, or `BANK_FEES` → `group = bills`. All other outflows → `group = subscriptions`. Remaining inflows → `group = other_inflow`.
 - **Occurrence timeline:** Default windows are last 3 calendar months (actual) and next 6 calendar months (projected). Actual rows use posted transaction dates and amounts; projected rows use `typical_amount`. Use parent `direction` to interpret inflow vs outflow. Pass `history_months = 0` or `projection_months = 0` to omit one side.

@@ -88,5 +88,5 @@ Keep specs concise; move deep SQL to insight core partials.
 | Domain | File | Endpoints |
 |---|---|---|
 | Net worth | [net-worth-apis.md](examples/net-worth/net-worth-apis.md) | `POST /v1/plaid/sync/balances`, `GET /v1/accounts`, `GET /v1/performance-history`, `GET /v1/account-balance`, `GET /v1/assets-liabilities` |
-| Investment account | [investment-account-apis.md](examples/investment-account/investment-account-apis.md) | `POST /v1/plaid/sync/balances` (cross-ref), `POST /v1/plaid/sync/investment-holdings` |
+| Investment account | [investment-account-apis.md](examples/investment-account/investment-account-apis.md) | `POST /v1/plaid/sync/balances` (cross-ref), `POST /v1/plaid/sync/investment-holdings`, `GET /v1/investment/holdings`, `GET /v1/investment/allocation`; reuses `GET /v1/account-balance`, `GET /v1/performance-history` |
 | Cash flow | [cash-flow-apis.md](examples/cash-flow/cash-flow-apis.md) | `POST /v1/plaid/sync/transactions`, `GET /v1/cash-flow/recurrences` |
